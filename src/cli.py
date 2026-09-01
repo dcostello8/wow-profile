@@ -89,6 +89,7 @@ def update():
     success_count = 0
     failure_count = 0
     partial_count = 0
+    deactivated_count = 0
 
     total_selected = len(selected)
     for position, character in enumerate(selected, start=1):
@@ -113,6 +114,9 @@ def update():
             status = "updated" if not failed_sections else "partial"
             if len(failed_sections) == len(sections):
                 status = "failed"
+            deactivated = deactivate_if_public_profile_unavailable(character, section_status)
+            if deactivated:
+                deactivated_count += 1
 
             profile = data.get("profile")
             output_path = character_output_path(character)
@@ -153,6 +157,8 @@ def update():
                 f"Updated {display_name}: "
                 f"{len(sections) - len(failed_sections)}/{len(sections)} sections."
             )
+            if deactivated:
+                print(f"Set {display_name} inactive because its public profile is unavailable.")
         except requests.HTTPError as exc:
             failure_count += 1
             index["characters"].append(
@@ -168,6 +174,9 @@ def update():
             )
             print(f"Failed {display_name}: {exc}", file=sys.stderr)
 
+    if deactivated_count:
+        save_roster(roster)
+
     index["updated_count"] = success_count
     index["partial_count"] = partial_count
     index["failed_count"] = failure_count
@@ -181,7 +190,26 @@ def update():
         f"Updated {success_count} characters; "
         f"{partial_count} partial; {failure_count} failed."
     )
+    if deactivated_count:
+        print(f"Set {deactivated_count} characters inactive because their public profiles are unavailable.")
     return 0 if failure_count == 0 else 1
+
+
+def public_profile_unavailable(section_status):
+    profile_status = (section_status or {}).get("profile") or {}
+    return (
+        profile_status.get("status") == "failed"
+        and profile_status.get("status_code") in {403, 404}
+    )
+
+
+def deactivate_if_public_profile_unavailable(character, section_status):
+    if not public_profile_unavailable(section_status):
+        return False
+    if character.get("enabled") is False:
+        return False
+    character["enabled"] = False
+    return True
 
 
 def load_json_file(path):

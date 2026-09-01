@@ -79,10 +79,13 @@ def fetch_enabled_character_sections(config, hosts, access_token, character, sec
             )
             section_status[section] = {"status": "updated"}
         except requests.HTTPError as exc:
+            response = exc.response
             section_status[section] = {
                 "status": "failed",
                 "error": error_summary(exc),
             }
+            if response is not None:
+                section_status[section]["status_code"] = response.status_code
         except Exception as exc:
             section_status[section] = {
                 "status": "failed",

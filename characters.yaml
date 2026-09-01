@@ -129,7 +129,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170281530?namespace=profile-us
 - key: us:id:170283708
   name: Whalas
-  enabled: true
+  enabled: false
   region: us
   id: 170283708
   realm: Windrunner
@@ -162,7 +162,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170306897?namespace=profile-us
 - key: us:id:174277929
   name: Tinho
-  enabled: true
+  enabled: false
   region: us
   id: 174277929
   realm: Windrunner
@@ -327,7 +327,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181637717?namespace=profile-us
 - key: us:id:181641053
   name: Hopatcong
-  enabled: true
+  enabled: false
   region: us
   id: 181641053
   realm: Windrunner
@@ -349,7 +349,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181648818?namespace=profile-us
 - key: us:id:181648833
   name: Nerdindy
-  enabled: true
+  enabled: false
   region: us
   id: 181648833
   realm: Windrunner
@@ -371,7 +371,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181677882?namespace=profile-us
 - key: us:id:181717973
   name: Rhekage
-  enabled: true
+  enabled: false
   region: us
   id: 181717973
   realm: Darrowmere
@@ -393,7 +393,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181731765?namespace=profile-us
 - key: us:id:181792990
   name: Absecon
-  enabled: true
+  enabled: false
   region: us
   id: 181792990
   realm: Darrowmere
@@ -415,7 +415,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181834362?namespace=profile-us
 - key: us:id:181867626
   name: Hoboken
-  enabled: true
+  enabled: false
   region: us
   id: 181867626
   realm: Darrowmere
@@ -448,7 +448,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181898596?namespace=profile-us
 - key: us:id:181898603
   name: Raritan
-  enabled: true
+  enabled: false
   region: us
   id: 181898603
   realm: Windrunner

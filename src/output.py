@@ -882,12 +882,40 @@ def best_mythic_rating(mythic_plus):
     return rating or ""
 
 
+def active_character_documents(roster_characters, character_documents):
+    active_keys = {
+        character_identity_key(character)
+        for character in roster_characters
+        if character.get("enabled") is True
+    }
+    return [
+        document
+        for document in character_documents
+        if character_identity_key(document.get("character") or {}) in active_keys
+    ]
+
+
+def character_identity_key(character):
+    if character.get("key"):
+        return str(character.get("key"))
+    region = character.get("region")
+    character_id = character.get("id")
+    if region and character_id is not None:
+        return f"{region}:id:{character_id}"
+    return "|".join([
+        str(region or ""),
+        str(character.get("realm_slug") or character.get("realm") or "").casefold(),
+        str(character.get("name") or "").casefold(),
+    ])
+
+
 def write_account_summary_markdown(path, generated_at, roster, index, character_documents):
     roster_characters = [
         character
         for character in roster.get("characters", [])
         if isinstance(character, dict)
     ]
+    active_documents = active_character_documents(roster_characters, character_documents)
     enabled_count = sum(1 for character in roster_characters if character.get("enabled"))
     stale_count = sum(1 for character in roster_characters if character.get("stale"))
     realms = sorted({
@@ -901,7 +929,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         + stat_card("Active", enabled_count)
         + stat_card("Realms", len(realms))
         + stat_card("Stale Entries", stale_count)
-        + stat_card("Detailed Profiles", len(character_documents))
+        + stat_card("Detailed Profiles", len(active_documents))
         + "</section>"
     ]
 
@@ -921,10 +949,10 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
             )
 
     sections.append("<h2>Active Characters</h2>")
-    sections.append(enabled_characters_table(character_documents))
+    sections.append(enabled_characters_table(active_documents))
 
     class_counts = {}
-    for document in character_documents:
+    for document in active_documents:
         profile_sections = document.get("sections") or {}
         profile = profile_sections.get("profile") or {}
         class_name = (profile.get("character_class") or {}).get("name")
@@ -938,7 +966,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     ))
 
     sections.append("<h2>Active Profession Coverage</h2>")
-    sections.append(profession_coverage_table(character_documents))
+    sections.append(profession_coverage_table(active_documents))
 
     grouped = {}
     for character in roster_characters:

@@ -1,6 +1,7 @@
 import unittest
 
 from src.output import (
+    active_character_documents,
     enabled_characters_table,
     equipment_sets_summary,
     format_item_level,
@@ -11,6 +12,31 @@ from src.output import (
 
 
 class OutputTests(unittest.TestCase):
+    def test_active_character_documents_filters_inactive_roster_entries(self):
+        roster_characters = [
+            {
+                "key": "us:id:1",
+                "name": "Activeone",
+                "realm": "Windrunner",
+                "enabled": True,
+            },
+            {
+                "key": "us:id:2",
+                "name": "Inactiveone",
+                "realm": "Darrowmere",
+                "enabled": False,
+            },
+        ]
+        documents = [
+            {"character": {"key": "us:id:1", "name": "Activeone"}},
+            {"character": {"key": "us:id:2", "name": "Inactiveone"}},
+        ]
+
+        active = active_character_documents(roster_characters, documents)
+
+        self.assertEqual(len(active), 1)
+        self.assertEqual(active[0]["character"]["name"], "Activeone")
+
     def test_format_item_level_equipped_and_average(self):
         self.assertEqual(
             format_item_level({"equipped": 681.25, "average": 684.375}),
@@ -254,6 +280,53 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("<h2>Enabled Characters</h2>", html)
         self.assertNotIn("<h2>Class Coverage</h2>", html)
         self.assertNotIn("<h2>Profession Coverage</h2>", html)
+
+    def test_account_summary_active_sections_exclude_inactive_documents(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "account_summary.html"
+            write_account_summary_markdown(
+                path,
+                "2026-09-01T19:00:00+00:00",
+                {
+                    "characters": [
+                        {
+                            "key": "us:id:1",
+                            "name": "Activeone",
+                            "realm": "Windrunner",
+                            "enabled": True,
+                        },
+                        {
+                            "key": "us:id:2",
+                            "name": "Absecon",
+                            "realm": "Darrowmere",
+                            "enabled": False,
+                        },
+                    ]
+                },
+                {},
+                [
+                    {
+                        "character": {"key": "us:id:1", "name": "Activeone", "realm": "Windrunner"},
+                        "sections": {"profile": {"character_class": {"name": "Mage"}}},
+                    },
+                    {
+                        "character": {"key": "us:id:2", "name": "Absecon", "realm": "Darrowmere"},
+                        "sections": {"profile": {"character_class": {"name": "Warrior"}}},
+                    },
+                ],
+            )
+            html = path.read_text(encoding="utf-8")
+
+        active_section = html.split("<h2>Active Characters</h2>", 1)[1].split("<h2>Active Class Coverage</h2>", 1)[0]
+        class_section = html.split("<h2>Active Class Coverage</h2>", 1)[1].split("<h2>Active Profession Coverage</h2>", 1)[0]
+
+        self.assertIn("Activeone", active_section)
+        self.assertNotIn("Absecon", active_section)
+        self.assertIn("Mage", class_section)
+        self.assertNotIn("Warrior", class_section)
 
 
 if __name__ == "__main__":
