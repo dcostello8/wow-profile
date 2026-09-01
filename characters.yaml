@@ -85,7 +85,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-169864523?namespace=profile-us
 - key: us:id:169922633
   name: Rekkage
-  enabled: false
+  enabled: true
   region: us
   id: 169922633
   realm: Darrowmere
@@ -118,7 +118,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170280797?namespace=profile-us
 - key: us:id:170281530
   name: Kurjath
-  enabled: false
+  enabled: true
   region: us
   id: 170281530
   realm: Windrunner
@@ -129,7 +129,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170281530?namespace=profile-us
 - key: us:id:170283708
   name: Whalas
-  enabled: false
+  enabled: true
   region: us
   id: 170283708
   realm: Windrunner
@@ -162,7 +162,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170306897?namespace=profile-us
 - key: us:id:174277929
   name: Tinho
-  enabled: false
+  enabled: true
   region: us
   id: 174277929
   realm: Windrunner
@@ -173,7 +173,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-174277929?namespace=profile-us
 - key: us:id:181214996
   name: Tazaral
-  enabled: false
+  enabled: true
   region: us
   id: 181214996
   realm: Windrunner
@@ -184,7 +184,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181214996?namespace=profile-us
 - key: us:id:181384987
   name: Aituru
-  enabled: false
+  enabled: true
   region: us
   id: 181384987
   realm: Darrowmere
@@ -239,7 +239,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181494840?namespace=profile-us
 - key: us:id:181524794
   name: Samolina
-  enabled: false
+  enabled: true
   region: us
   id: 181524794
   realm: Windrunner
@@ -250,7 +250,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181524794?namespace=profile-us
 - key: us:id:181536843
   name: Sarsam
-  enabled: false
+  enabled: true
   region: us
   id: 181536843
   realm: Windrunner
@@ -261,7 +261,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181536843?namespace=profile-us
 - key: us:id:181561497
   name: Weehawken
-  enabled: false
+  enabled: true
   region: us
   id: 181561497
   realm: Darrowmere
@@ -294,7 +294,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181561506?namespace=profile-us
 - key: us:id:181600878
   name: Tuckahoe
-  enabled: false
+  enabled: true
   region: us
   id: 181600878
   realm: Darrowmere
@@ -305,7 +305,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181600878?namespace=profile-us
 - key: us:id:181621279
   name: Watchung
-  enabled: false
+  enabled: true
   region: us
   id: 181621279
   realm: Darrowmere
@@ -316,7 +316,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181621279?namespace=profile-us
 - key: us:id:181637717
   name: Mahwah
-  enabled: false
+  enabled: true
   region: us
   id: 181637717
   realm: Windrunner
@@ -327,7 +327,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181637717?namespace=profile-us
 - key: us:id:181641053
   name: Hopatcong
-  enabled: false
+  enabled: true
   region: us
   id: 181641053
   realm: Windrunner
@@ -349,7 +349,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181648818?namespace=profile-us
 - key: us:id:181648833
   name: Nerdindy
-  enabled: false
+  enabled: true
   region: us
   id: 181648833
   realm: Windrunner
@@ -371,7 +371,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181677882?namespace=profile-us
 - key: us:id:181717973
   name: Rhekage
-  enabled: false
+  enabled: true
   region: us
   id: 181717973
   realm: Darrowmere
@@ -393,7 +393,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181731765?namespace=profile-us
 - key: us:id:181792990
   name: Absecon
-  enabled: false
+  enabled: true
   region: us
   id: 181792990
   realm: Darrowmere
@@ -415,7 +415,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1351-181834362?namespace=profile-us
 - key: us:id:181867626
   name: Hoboken
-  enabled: false
+  enabled: true
   region: us
   id: 181867626
   realm: Darrowmere
@@ -448,7 +448,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-181898596?namespace=profile-us
 - key: us:id:181898603
   name: Raritan
-  enabled: false
+  enabled: true
   region: us
   id: 181898603
   realm: Windrunner

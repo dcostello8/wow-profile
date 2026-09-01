@@ -1,0 +1,8 @@
+## Interface: 120100
+## Title: WowProfileCollector
+## Notes: Captures local character click bindings, keybindings, and action bars for wow-profile.
+## Author: wow-profile
+## Version: 0.1.0
+## SavedVariables: WowProfileCollectorDB
+
+WowProfileCollector.lua

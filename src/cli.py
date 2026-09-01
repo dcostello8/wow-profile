@@ -1,6 +1,8 @@
 import argparse
+import json
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 
@@ -23,21 +25,27 @@ from .config import (
     selected_update_sections,
     update_settings_for_character,
 )
+from .local_wow import import_saved_variables
 from .oauth import (
     exchange_code_for_token,
     get_client_credentials_token,
     wait_for_authorization_code,
 )
 from .output import (
+    ACCOUNT_SUMMARY_MARKDOWN_FILE,
     FULL_ROSTER_MARKDOWN_FILE,
     ROSTER_MARKDOWN_FILE,
     ROSTER_INDEX_FILE,
     character_output_path,
+    equipment_sets_summary,
+    local_specs_summary,
     roster_index_entry,
     write_json,
+    write_account_summary_markdown,
     write_full_roster_markdown,
     write_roster_markdown,
 )
+from .roster_ui import run_roster_ui
 
 
 def discover():
@@ -81,9 +89,11 @@ def update():
     failure_count = 0
     partial_count = 0
 
-    for character in selected:
+    total_selected = len(selected)
+    for position, character in enumerate(selected, start=1):
         display_name = f"{character.get('name')} - {character.get('realm')}"
         try:
+            print(f"Updating [{position}/{total_selected}] {display_name}...", flush=True)
             require_character_field(character, "name")
             require_character_field(character, "realm_slug")
             settings = update_settings_for_character(roster, character)
@@ -105,6 +115,7 @@ def update():
 
             profile = data.get("profile")
             output_path = character_output_path(character)
+            existing_document = load_json_file(output_path) or {}
             document = {
                 "retrieved_at": retrieved_at,
                 "source": "Battle.net World of Warcraft Profile API",
@@ -120,6 +131,8 @@ def update():
                 "sections": data,
                 "section_status": section_status,
             }
+            if existing_document.get("local_client_data"):
+                document["local_client_data"] = existing_document["local_client_data"]
             write_json(output_path, document)
             index["characters"].append(
                 {
@@ -158,15 +171,79 @@ def update():
     index["partial_count"] = partial_count
     index["failed_count"] = failure_count
     write_json(ROSTER_INDEX_FILE, index)
-    write_roster_markdown(ROSTER_MARKDOWN_FILE, index)
+    refresh_local_output_summaries()
 
     print(f"Wrote {ROSTER_INDEX_FILE}.")
     print(f"Wrote {ROSTER_MARKDOWN_FILE}.")
+    print(f"Wrote {ACCOUNT_SUMMARY_MARKDOWN_FILE}.")
     print(
         f"Updated {success_count} characters; "
         f"{partial_count} partial; {failure_count} failed."
     )
     return 0 if failure_count == 0 else 1
+
+
+def load_json_file(path):
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def load_character_documents(index):
+    documents = []
+    for character in (index or {}).get("characters", []):
+        profile_path = character.get("profile_path")
+        if not profile_path:
+            continue
+        document = load_json_file(Path(profile_path))
+        if document:
+            documents.append(document)
+    return documents
+
+
+def write_account_summary():
+    generated_at = datetime.now(timezone.utc).isoformat()
+    roster, _ = load_character_roster()
+    index = load_json_file(ROSTER_INDEX_FILE) or {}
+    character_documents = load_character_documents(index)
+    write_account_summary_markdown(
+        ACCOUNT_SUMMARY_MARKDOWN_FILE,
+        generated_at,
+        roster,
+        index,
+        character_documents,
+    )
+
+
+def refresh_local_output_summaries():
+    index = load_json_file(ROSTER_INDEX_FILE) or {}
+    if not index:
+        write_account_summary()
+        return
+
+    for character in index.get("characters", []):
+        profile_path = character.get("profile_path")
+        if not profile_path:
+            continue
+        document = load_json_file(Path(profile_path))
+        if document:
+            spec_summary = local_specs_summary(document)
+            equipment_summary = equipment_sets_summary(document)
+            if spec_summary:
+                character["local_specs"] = spec_summary
+            if equipment_summary:
+                character["local_equipment_sets"] = equipment_summary
+
+    write_json(ROSTER_INDEX_FILE, index)
+    write_roster_markdown(ROSTER_MARKDOWN_FILE, index)
+    write_account_summary()
+
+
+def account_summary():
+    write_account_summary()
+    print(f"Wrote {ACCOUNT_SUMMARY_MARKDOWN_FILE}.")
+    return 0
 
 
 def fullroster():
@@ -222,6 +299,23 @@ def fullroster():
     return 0
 
 
+def import_local(saved_variables):
+    result = import_saved_variables(Path(saved_variables))
+    refresh_local_output_summaries()
+    print(f"Imported local WoW data for {result.matched} characters.")
+    print(f"Refreshed {ROSTER_INDEX_FILE}.")
+    print(f"Refreshed {ROSTER_MARKDOWN_FILE}.")
+    print(f"Refreshed {ACCOUNT_SUMMARY_MARKDOWN_FILE}.")
+    if result.missing_output:
+        print(
+            f"Skipped {result.missing_output} matched characters without generated JSON. "
+            "Run update for those characters first."
+        )
+    if result.unmatched:
+        print(f"SavedVariables contained {result.unmatched} characters not found in characters.yaml.")
+    return 0
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Discover and update World of Warcraft character data."
@@ -230,6 +324,22 @@ def main(argv=None):
     subparsers.add_parser("discover", help="Authenticate and write characters.yaml.")
     subparsers.add_parser("update", help="Fetch data for enabled characters.")
     subparsers.add_parser("fullroster", help="Write basic info for all discovered characters.")
+    subparsers.add_parser("summary", help="Write account_summary.html from existing output.")
+    roster_ui_parser = subparsers.add_parser(
+        "roster-ui",
+        help="Open a local UI for enabling and disabling discovered characters.",
+    )
+    roster_ui_parser.add_argument("--host", default="127.0.0.1", help="Host for the local UI.")
+    roster_ui_parser.add_argument("--port", default=8765, type=int, help="Port for the local UI.")
+    import_local_parser = subparsers.add_parser(
+        "import-local",
+        help="Merge WowProfileCollector SavedVariables into generated character JSON.",
+    )
+    import_local_parser.add_argument(
+        "--saved-variables",
+        required=True,
+        help="Path to WTF\\Account\\<account>\\SavedVariables\\WowProfileCollector.lua.",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -240,6 +350,12 @@ def main(argv=None):
             return update()
         if args.command == "fullroster":
             return fullroster()
+        if args.command == "summary":
+            return account_summary()
+        if args.command == "roster-ui":
+            return run_roster_ui(args.host, args.port)
+        if args.command == "import-local":
+            return import_local(args.saved_variables)
     except requests.HTTPError as exc:
         response = exc.response
         details = response.text if response is not None else str(exc)
