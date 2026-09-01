@@ -447,7 +447,7 @@ HTML = r"""<!doctype html>
 
     <section class="stats">
       <div class="stat"><div class="stat-label">Characters</div><div class="stat-value" id="total">0</div></div>
-      <div class="stat"><div class="stat-label">Enabled</div><div class="stat-value" id="enabled">0</div></div>
+      <div class="stat"><div class="stat-label">Active</div><div class="stat-value" id="enabled">0</div></div>
       <div class="stat"><div class="stat-label">Visible</div><div class="stat-value" id="visible">0</div></div>
     </section>
 
@@ -456,19 +456,19 @@ HTML = r"""<!doctype html>
       <select id="realm"></select>
       <select id="state">
         <option value="all">All states</option>
-        <option value="enabled">Enabled</option>
-        <option value="disabled">Disabled</option>
+        <option value="enabled">Active</option>
+        <option value="disabled">Inactive</option>
         <option value="stale">Stale</option>
       </select>
-      <button id="enable-visible" type="button">Enable Visible</button>
-      <button id="disable-visible" type="button">Disable Visible</button>
+      <button id="enable-visible" type="button">Activate Visible</button>
+      <button id="disable-visible" type="button">Deactivate Visible</button>
     </section>
 
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Enabled</th>
+            <th>Active</th>
             <th class="sortable"><button id="sort-name" type="button">Character</button></th>
             <th class="sortable"><button id="sort-realm" type="button">Realm</button></th>
             <th>Region</th>
@@ -648,7 +648,7 @@ HTML = r"""<!doctype html>
       els.rows.innerHTML = filtered.map(character => `
         <tr>
           <td>
-            <label class="switch" title="${character.enabled ? "Enabled" : "Disabled"}">
+            <label class="switch" title="${character.enabled ? "Active" : "Inactive"}">
               <input type="checkbox" data-id="${escapeHtml(character.identity)}" ${character.enabled ? "checked" : ""}>
               <span class="slider"></span>
             </label>
@@ -730,8 +730,8 @@ HTML = r"""<!doctype html>
 
     async function updateProfiles() {
       els.refresh.disabled = true;
-      setStatus("Starting profile update for enabled characters...");
-      showStatusModal("Updating Profiles", "Starting profile update for enabled characters...", "running");
+      setStatus("Starting profile update for active characters...");
+      showStatusModal("Updating Profiles", "Starting profile update for active characters...", "running");
       await api("/api/update", { method: "POST", body: "{}" });
       pollUpdate();
     }
@@ -792,7 +792,7 @@ HTML = r"""<!doctype html>
         }
       }
       await load();
-      setStatus(enabled ? "Enabled visible characters" : "Disabled visible characters");
+      setStatus(enabled ? "Activated visible characters" : "Deactivated visible characters");
     }
 
     els.search.addEventListener("input", applyFilters);
@@ -910,6 +910,10 @@ class UpdateState(CommandState):
         }
 
 
+def start_initial_update(server):
+    return server.update_state.start()
+
+
 class RosterUIHandler(BaseHTTPRequestHandler):
     server_version = "WowProfileRosterUI/1.0"
 
@@ -1010,9 +1014,12 @@ def run_roster_ui(host=DEFAULT_HOST, port=DEFAULT_PORT, path=CHARACTERS_FILE):
     server.roster_path = path
     server.discover_state = DiscoverState()
     server.update_state = UpdateState()
+    started = start_initial_update(server)
     url = f"http://{host}:{port}/"
     threading.Timer(0.25, lambda: webbrowser.open(url)).start()
     print(f"Roster UI running at {url}")
+    if started:
+        print("Started profile refresh.")
     print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()

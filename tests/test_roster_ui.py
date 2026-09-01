@@ -7,10 +7,12 @@ import yaml
 
 from src.roster_ui import (
     DiscoverState,
+    HTML,
     UpdateState,
     roster_payload,
     set_all_enabled,
     set_character_enabled,
+    start_initial_update,
 )
 
 
@@ -96,6 +98,37 @@ class RosterUITests(unittest.TestCase):
         self.assertEqual(snapshot["progress"]["total"], 13)
         self.assertEqual(snapshot["progress"]["label"], "Thaigan - Windrunner")
         self.assertEqual(snapshot["progress"]["percent"], 23)
+
+    def test_roster_ui_page_polls_update_status_without_starting_refresh(self):
+        self.assertNotIn(".then(updateProfiles)", HTML)
+        self.assertIn("pollUpdate();", HTML)
+
+    def test_roster_ui_uses_active_labels(self):
+        self.assertIn('<div class="stat-label">Active</div>', HTML)
+        self.assertIn('<option value="enabled">Active</option>', HTML)
+        self.assertIn('<option value="disabled">Inactive</option>', HTML)
+        self.assertIn("Activate Visible", HTML)
+        self.assertIn("Deactivate Visible", HTML)
+        self.assertIn("<th>Active</th>", HTML)
+        self.assertNotIn(">Enabled<", HTML)
+        self.assertNotIn(">Disabled<", HTML)
+
+    def test_server_startup_starts_initial_update(self):
+        class State:
+            def __init__(self):
+                self.started = False
+
+            def start(self):
+                self.started = True
+                return True
+
+        class Server:
+            update_state = State()
+
+        server = Server()
+
+        self.assertTrue(start_initial_update(server))
+        self.assertTrue(server.update_state.started)
 
 
 if __name__ == "__main__":

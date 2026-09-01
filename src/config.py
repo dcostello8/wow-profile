@@ -254,5 +254,5 @@ def require_character_field(character, field):
     value = character.get(field)
     if value in (None, ""):
         name = character.get("name") or character.get("key") or "unknown character"
-        raise RuntimeError(f"Enabled character {name} is missing required field: {field}")
+        raise RuntimeError(f"Active character {name} is missing required field: {field}")
     return value

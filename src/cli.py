@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,7 +61,7 @@ def discover():
     total = len(roster["characters"])
     enabled = sum(1 for character in roster["characters"] if character.get("enabled"))
     print(f"Wrote {total} characters to {CHARACTERS_FILE}.")
-    print(f"Enabled characters preserved: {enabled}. Newly discovered characters default to disabled.")
+    print(f"Active characters preserved: {enabled}. Newly discovered characters default to inactive.")
 
 
 def update():
@@ -70,7 +71,7 @@ def update():
     selected = enabled_characters(characters)
 
     if not selected:
-        print("No enabled characters found in characters.yaml.")
+        print("No active characters found in characters.yaml.")
         print("Set enabled: true for at least one character, then run update again.")
         return 0
 
@@ -84,7 +85,7 @@ def update():
         "characters": [],
     }
 
-    print(f"Updating {len(selected)} enabled characters...")
+    print(f"Updating {len(selected)} active characters...")
     success_count = 0
     failure_count = 0
     partial_count = 0
@@ -316,13 +317,43 @@ def import_local(saved_variables):
     return 0
 
 
+def find_latest_saved_variables():
+    roots = []
+    program_files_x86 = os.environ.get("ProgramFiles(x86)")
+    if program_files_x86:
+        roots.append(Path(program_files_x86) / "World of Warcraft" / "_retail_" / "WTF" / "Account")
+
+    candidates = []
+    for root in roots:
+        if root.exists():
+            candidates.extend(root.rglob("WowProfileCollector.lua"))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def import_latest_local_data():
+    saved_variables = find_latest_saved_variables()
+    if not saved_variables:
+        print("No WowProfileCollector SavedVariables found; skipping local import.")
+        return
+
+    result = import_saved_variables(saved_variables)
+    print(f"Imported latest local WoW data from {saved_variables}.")
+    print(f"Matched {result.matched} characters.")
+    if result.missing_output:
+        print(f"Skipped {result.missing_output} matched characters without generated JSON.")
+    if result.unmatched:
+        print(f"SavedVariables contained {result.unmatched} characters not found in characters.yaml.")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Discover and update World of Warcraft character data."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("discover", help="Authenticate and write characters.yaml.")
-    subparsers.add_parser("update", help="Fetch data for enabled characters.")
+    subparsers.add_parser("update", help="Fetch data for active characters.")
     subparsers.add_parser("fullroster", help="Write basic info for all discovered characters.")
     subparsers.add_parser("summary", help="Write account_summary.html from existing output.")
     roster_ui_parser = subparsers.add_parser(
@@ -353,6 +384,9 @@ def main(argv=None):
         if args.command == "summary":
             return account_summary()
         if args.command == "roster-ui":
+            import_latest_local_data()
+            print("Refreshing local summary data...")
+            refresh_local_output_summaries()
             return run_roster_ui(args.host, args.port)
         if args.command == "import-local":
             return import_local(args.saved_variables)

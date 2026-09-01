@@ -88,6 +88,13 @@ def stat_card(label, value):
     )
 
 
+def local_time(value):
+    return (
+        f'<time class="local-time" datetime="{html_cell(value)}" data-local-time>'
+        f'{html_cell(value)}</time>'
+    )
+
+
 def html_page(title, generated_at, sections):
     body = "\n".join(sections)
     return f"""<!doctype html>
@@ -141,6 +148,11 @@ def html_page(title, generated_at, sections):
     .generated {{
       color: var(--muted);
       font-size: 13px;
+    }}
+    .metadata {{
+      color: var(--muted);
+      font-size: 12px;
+      margin: 6px 0 0;
     }}
     .stats {{
       display: grid;
@@ -314,8 +326,22 @@ def html_page(title, generated_at, sections):
     return String(left ?? "").localeCompare(String(right ?? ""), undefined, {{ sensitivity: "base", numeric: true }});
   }}
 
+  function formatLocalTimes() {{
+    for (const element of document.querySelectorAll("[data-local-time]")) {{
+      const value = element.getAttribute("datetime") || element.textContent;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) continue;
+      element.textContent = new Intl.DateTimeFormat(undefined, {{
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZoneName: "short"
+      }}).format(date);
+      element.title = value;
+    }}
+  }}
+
   function accountRows() {{
-    return Array.from(document.querySelectorAll("#enabled-character-body tr.expandable-row"));
+    return Array.from(document.querySelectorAll("#enabled-character-body > tr.expandable-row"));
   }}
 
   function detailRowFor(row) {{
@@ -393,6 +419,7 @@ def html_page(title, generated_at, sections):
   for (const button of document.querySelectorAll("[data-enabled-sort]")) {{
     button.addEventListener("click", () => sortEnabledCharacters(button.dataset.enabledSort));
   }}
+  formatLocalTimes();
   updateEnabledSortLabels();
 </script>
 </body>
@@ -601,7 +628,7 @@ def enabled_characters_table(documents):
 
     return (
         '<div class="table-tools">'
-        '<input id="enabled-character-filter" type="search" placeholder="Filter enabled characters">'
+        '<input id="enabled-character-filter" type="search" placeholder="Filter active characters">'
         '<select id="enabled-realm-filter"><option value="">All realms</option>'
         + "".join(
             f'<option value="{html_cell(realm)}">{html_cell(realm)}</option>'
@@ -871,7 +898,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     sections = [
         '<section class="stats">'
         + stat_card("Characters Discovered", len(roster_characters))
-        + stat_card("Enabled", enabled_count)
+        + stat_card("Active", enabled_count)
         + stat_card("Realms", len(realms))
         + stat_card("Stale Entries", stale_count)
         + stat_card("Detailed Profiles", len(character_documents))
@@ -881,14 +908,19 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     if index:
         sections.append(
             '<section class="stats">'
-            + stat_card("Last Update", index.get("generated_at", ""))
             + stat_card("Updated", index.get("updated_count", 0))
             + stat_card("Partial", index.get("partial_count", 0))
             + stat_card("Failed", index.get("failed_count", 0))
             + "</section>"
         )
+        if index.get("generated_at"):
+            sections.append(
+                '<div class="metadata">Last Update: '
+                + local_time(index.get("generated_at"))
+                + "</div>"
+            )
 
-    sections.append("<h2>Enabled Characters</h2>")
+    sections.append("<h2>Active Characters</h2>")
     sections.append(enabled_characters_table(character_documents))
 
     class_counts = {}
@@ -899,13 +931,13 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         if class_name:
             class_counts[class_name] = class_counts.get(class_name, 0) + 1
 
-    sections.append("<h2>Class Coverage</h2>")
+    sections.append("<h2>Active Class Coverage</h2>")
     sections.append(table(
         ["Class", "Characters"],
         [[class_name, class_counts[class_name]] for class_name in sorted(class_counts)],
     ))
 
-    sections.append("<h2>Profession Coverage</h2>")
+    sections.append("<h2>Active Profession Coverage</h2>")
     sections.append(profession_coverage_table(character_documents))
 
     grouped = {}
@@ -922,7 +954,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
                 "yes" if character.get("stale") else "no",
             ])
         sections.append(f"<h2>{html_cell(realm)}</h2>")
-        sections.append(table(["Character", "Enabled", "Stale"], rows))
+        sections.append(table(["Character", "Active", "Stale"], rows))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

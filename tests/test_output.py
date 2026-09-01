@@ -6,6 +6,7 @@ from src.output import (
     format_item_level,
     local_specs_summary,
     profession_coverage_table,
+    write_account_summary_markdown,
 )
 
 
@@ -220,6 +221,39 @@ class OutputTests(unittest.TestCase):
         self.assertIn("Jaedon", html)
         self.assertNotIn("Khaz Algar Herbalism: 88/100", html)
         self.assertNotIn("Midnight Mining: 12/100", html)
+
+    def test_account_summary_last_update_is_quiet_local_time(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "account_summary.html"
+            write_account_summary_markdown(
+                path,
+                "2026-09-01T19:00:00+00:00",
+                {"characters": []},
+                {
+                    "generated_at": "2026-09-01T18:30:00+00:00",
+                    "updated_count": 2,
+                    "partial_count": 1,
+                    "failed_count": 0,
+                },
+                [],
+            )
+            html = path.read_text(encoding="utf-8")
+
+        self.assertIn('<div class="metadata">Last Update: ', html)
+        self.assertIn('datetime="2026-09-01T18:30:00+00:00" data-local-time', html)
+        self.assertIn("formatLocalTimes()", html)
+        self.assertIn("#enabled-character-body > tr.expandable-row", html)
+        self.assertIn("<h2>Active Characters</h2>", html)
+        self.assertIn('<div class="stat-label">Active</div>', html)
+        self.assertIn("<h2>Active Class Coverage</h2>", html)
+        self.assertIn("<h2>Active Profession Coverage</h2>", html)
+        self.assertNotIn('<div class="stat-label">Last Update</div>', html)
+        self.assertNotIn("<h2>Enabled Characters</h2>", html)
+        self.assertNotIn("<h2>Class Coverage</h2>", html)
+        self.assertNotIn("<h2>Profession Coverage</h2>", html)
 
 
 if __name__ == "__main__":
