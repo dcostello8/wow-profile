@@ -1,55 +1,27 @@
 import requests
 
+from .blizzard.client import BlizzardClient, region_hosts
+from .blizzard.profile.account import AccountProfileService
+from .blizzard.profile.character import (
+    CHARACTER_PROFILE_SECTIONS,
+    CharacterProfileService,
+)
 
-UPDATE_ENDPOINTS = {
-    "profile": "",
-    "equipment": "equipment",
-    "specializations": "specializations",
-    "professions": "professions",
-    "mythic_plus": "mythic-keystone-profile",
-}
-
-
-def region_hosts(region):
-    if region == "cn":
-        raise RuntimeError("The China Battle.net region is not supported by this utility.")
-    return {
-        "oauth": f"https://{region}.battle.net/oauth",
-        "api": f"https://{region}.api.blizzard.com",
-    }
+UPDATE_ENDPOINTS = CHARACTER_PROFILE_SECTIONS
 
 
 def fetch_account_profile(config, hosts, access_token):
-    response = requests.get(
-        f"{hosts['api']}/profile/user/wow",
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={
-            "namespace": f"profile-{config['region']}",
-            "locale": config["locale"],
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()
+    client = BlizzardClient(config, access_token, hosts=hosts)
+    return AccountProfileService(client).get_wow_profile()
 
 
 def fetch_character_resource(config, hosts, access_token, character, section):
-    endpoint = UPDATE_ENDPOINTS[section]
-    suffix = f"/{endpoint}" if endpoint else ""
-    response = requests.get(
-        (
-            f"{hosts['api']}/profile/wow/character/"
-            f"{character['realm_slug']}/{character['name'].lower()}{suffix}"
-        ),
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={
-            "namespace": f"profile-{character.get('region') or config['region']}",
-            "locale": config["locale"],
-        },
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()
+    service_config = {
+        **config,
+        "region": character.get("region") or config["region"],
+    }
+    client = BlizzardClient(service_config, access_token, hosts=hosts)
+    return CharacterProfileService(client).get_section(character, section)
 
 
 def fetch_character_profile(config, hosts, access_token, character):

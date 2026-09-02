@@ -90,6 +90,7 @@ def update():
     failure_count = 0
     partial_count = 0
     deactivated_count = 0
+    deactivated_characters = []
 
     total_selected = len(selected)
     for position, character in enumerate(selected, start=1):
@@ -117,6 +118,16 @@ def update():
             deactivated = deactivate_if_public_profile_unavailable(character, section_status)
             if deactivated:
                 deactivated_count += 1
+                profile_status = (section_status.get("profile") or {})
+                deactivated_characters.append({
+                    "key": character.get("key"),
+                    "name": character.get("name"),
+                    "realm": character.get("realm"),
+                    "region": character.get("region"),
+                    "id": character.get("id"),
+                    "status_code": profile_status.get("status_code"),
+                    "reason": "public profile unavailable",
+                })
 
             profile = data.get("profile")
             output_path = character_output_path(character)
@@ -180,6 +191,9 @@ def update():
     index["updated_count"] = success_count
     index["partial_count"] = partial_count
     index["failed_count"] = failure_count
+    index["deactivated_count"] = deactivated_count
+    if deactivated_characters:
+        index["deactivated_characters"] = deactivated_characters
     write_json(ROSTER_INDEX_FILE, index)
     refresh_local_output_summaries()
 
@@ -415,7 +429,11 @@ def main(argv=None):
             import_latest_local_data()
             print("Refreshing local summary data...")
             refresh_local_output_summaries()
-            return run_roster_ui(args.host, args.port)
+            return run_roster_ui(
+                args.host,
+                args.port,
+                on_roster_change=refresh_local_output_summaries,
+            )
         if args.command == "import-local":
             return import_local(args.saved_variables)
     except requests.HTTPError as exc:

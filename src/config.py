@@ -11,15 +11,23 @@ DEFAULT_UPDATE_SETTINGS = {
     "profile": True,
     "equipment": True,
     "specializations": True,
+    "statistics": True,
     "professions": True,
     "mythic_plus": True,
+    "media": True,
+    "reputations": True,
+    "titles": True,
 }
 UPDATE_SECTIONS = (
     "profile",
     "equipment",
     "specializations",
+    "statistics",
     "professions",
     "mythic_plus",
+    "media",
+    "reputations",
+    "titles",
 )
 CHARACTERS_FILE = Path("characters.yaml")
 CHARACTER_FIELD_ORDER = [

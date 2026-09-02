@@ -9,6 +9,7 @@ from src.roster_ui import (
     DiscoverState,
     HTML,
     UpdateState,
+    activate_character_with_profile_update,
     roster_payload,
     set_all_enabled,
     set_character_enabled,
@@ -27,12 +28,14 @@ class RosterUITests(unittest.TestCase):
             "- key: us:id:1\n"
             "  name: Alpha\n"
             "  realm: Windrunner\n"
+            "  realm_slug: windrunner\n"
             "  region: us\n"
             "  id: 1\n"
             "  enabled: false\n"
             "- key: us:id:2\n"
             "  name: Beta\n"
             "  realm: Darrowmere\n"
+            "  realm_slug: darrowmere\n"
             "  region: us\n"
             "  id: 2\n"
             "  enabled: true\n",
@@ -60,6 +63,67 @@ class RosterUITests(unittest.TestCase):
         self.assertEqual(payload["enabled_count"], 2)
         self.assertTrue(saved["characters"][0]["enabled"])
         self.assertTrue(saved["characters"][1]["enabled"])
+
+    def test_activate_character_fetches_profile_before_enabling(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_roster(directory)
+            output_path = Path(directory) / "alpha.json"
+            index_path = Path(directory) / "roster.json"
+
+            with patch("src.roster_ui.load_config", return_value={"region": "us", "locale": "en_US"}), \
+                    patch("src.roster_ui.region_hosts", return_value={"api": "https://example.test"}), \
+                    patch("src.roster_ui.get_client_credentials_token", return_value="token"), \
+                    patch("src.roster_ui.character_output_path", return_value=output_path), \
+                    patch("src.roster_ui.ROSTER_INDEX_FILE", index_path), \
+                    patch(
+                        "src.roster_ui.fetch_enabled_character_sections",
+                        return_value=(
+                            {
+                                "profile": {
+                                    "level": 80,
+                                    "character_class": {"name": "Mage"},
+                                }
+                            },
+                            {"profile": {"status": "updated"}},
+                        ),
+                    ):
+                result = activate_character_with_profile_update("us:id:1", path)
+
+            saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+            output_exists = output_path.exists()
+            index_exists = index_path.exists()
+
+        self.assertTrue(saved["characters"][0]["enabled"])
+        self.assertEqual(result["message"], "Activated Alpha - Windrunner.")
+        self.assertTrue(output_exists)
+        self.assertTrue(index_exists)
+
+    def test_activate_character_keeps_character_inactive_when_profile_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_roster(directory)
+
+            with patch("src.roster_ui.load_config", return_value={"region": "us", "locale": "en_US"}), \
+                    patch("src.roster_ui.region_hosts", return_value={"api": "https://example.test"}), \
+                    patch("src.roster_ui.get_client_credentials_token", return_value="token"), \
+                    patch(
+                        "src.roster_ui.fetch_enabled_character_sections",
+                        return_value=(
+                            {},
+                            {
+                                "profile": {
+                                    "status": "failed",
+                                    "status_code": 404,
+                                    "error": "HTTP 404: not found",
+                                }
+                            },
+                        ),
+                    ):
+                with self.assertRaisesRegex(RuntimeError, "HTTP 404"):
+                    activate_character_with_profile_update("us:id:1", path)
+
+            saved = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+        self.assertFalse(saved["characters"][0]["enabled"])
 
     def test_set_all_enabled_can_scope_to_realm(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -99,9 +163,20 @@ class RosterUITests(unittest.TestCase):
         self.assertEqual(snapshot["progress"]["label"], "Thaigan - Windrunner")
         self.assertEqual(snapshot["progress"]["percent"], 23)
 
+    def test_update_state_tracks_deactivated_characters(self):
+        state = UpdateState()
+        state.append_output("Set Absecon - Darrowmere inactive because its public profile is unavailable.")
+
+        snapshot = state.snapshot()
+
+        self.assertEqual(snapshot["deactivated"]["count"], 1)
+        self.assertEqual(snapshot["deactivated"]["characters"], ["Absecon - Darrowmere"])
+
     def test_roster_ui_page_polls_update_status_without_starting_refresh(self):
         self.assertNotIn(".then(updateProfiles)", HTML)
         self.assertIn("pollUpdate();", HTML)
+        self.assertIn('id="status-side-effects"', HTML)
+        self.assertIn("Set inactive:", HTML)
 
     def test_roster_ui_uses_active_labels(self):
         self.assertIn('<div class="stat-label">Active</div>', HTML)

@@ -1,5 +1,6 @@
 import unittest
 
+from src.config import DEFAULT_UPDATE_SETTINGS, selected_update_sections
 from src.cli import (
     deactivate_if_public_profile_unavailable,
     public_profile_unavailable,
@@ -55,6 +56,21 @@ class CliTests(unittest.TestCase):
 
         self.assertFalse(changed)
         self.assertTrue(character["enabled"])
+
+    def test_default_update_sections_include_phase_one_profile_endpoints(self):
+        sections = selected_update_sections(DEFAULT_UPDATE_SETTINGS)
+
+        self.assertEqual(sections, [
+            "profile",
+            "equipment",
+            "specializations",
+            "statistics",
+            "professions",
+            "mythic_plus",
+            "media",
+            "reputations",
+            "titles",
+        ])
 
 
 if __name__ == "__main__":

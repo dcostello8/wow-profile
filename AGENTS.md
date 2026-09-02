@@ -54,8 +54,12 @@ Default sections are:
 - `profile`
 - `equipment`
 - `specializations`
+- `statistics`
 - `professions`
 - `mythic_plus`
+- `media`
+- `reputations`
+- `titles`
 
 If a character's public `profile` section fails with HTTP `403` or `404`, the update flow marks that character inactive by setting `enabled: false` in `characters.yaml`. Do not apply this inactive rule to arbitrary transient errors unless the behavior is intentionally changed.
 
@@ -200,6 +204,7 @@ output/
 ```
 
 Prefer one detailed JSON file per character rather than one large monolithic file.
+Static/reference Battle.net cache files belong under ignored `output/cache/blizzard/`.
 
 ## WoW Addon
 
@@ -237,7 +242,8 @@ Keep responsibilities separated:
 - `src/cli.py`: command orchestration, startup workflow, public-profile inactive handling.
 - `src/config.py`: `.env`-independent roster config load/merge/save and update settings.
 - `src/oauth.py`: OAuth URL construction, browser launch, localhost callback, token exchange.
-- `src/blizzard_api.py`: Blizzard HTTP calls and per-section status/error capture.
+- `src/blizzard/`: reusable Battle.net API client, profile services, game-data services, namespace handling, and JSON reference cache helpers.
+- `src/blizzard_api.py`: backward-compatible facade over `src/blizzard/` for per-section status/error capture.
 - `src/local_wow.py`: SavedVariables parser and local addon data import.
 - `src/output.py`: JSON and HTML report rendering.
 - `src/roster_ui.py`: local HTTP server, roster editor UI, command status/progress endpoints.

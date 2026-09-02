@@ -151,7 +151,7 @@ characters:
   protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/87-170301178?namespace=profile-us
 - key: us:id:170306897
   name: Kirjath
-  enabled: true
+  enabled: false
   region: us
   id: 170306897
   realm: Windrunner

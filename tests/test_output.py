@@ -274,12 +274,48 @@ class OutputTests(unittest.TestCase):
         self.assertIn("#enabled-character-body > tr.expandable-row", html)
         self.assertIn("<h2>Active Characters</h2>", html)
         self.assertIn('<div class="stat-label">Active</div>', html)
+        self.assertIn('<div class="stat-label">Set Inactive</div>', html)
         self.assertIn("<h2>Active Class Coverage</h2>", html)
         self.assertIn("<h2>Active Profession Coverage</h2>", html)
         self.assertNotIn('<div class="stat-label">Last Update</div>', html)
         self.assertNotIn("<h2>Enabled Characters</h2>", html)
         self.assertNotIn("<h2>Class Coverage</h2>", html)
         self.assertNotIn("<h2>Profession Coverage</h2>", html)
+
+    def test_account_summary_lists_recent_inactive_changes(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "account_summary.html"
+            write_account_summary_markdown(
+                path,
+                "2026-09-01T19:00:00+00:00",
+                {"characters": []},
+                {
+                    "generated_at": "2026-09-01T18:30:00+00:00",
+                    "updated_count": 0,
+                    "partial_count": 0,
+                    "failed_count": 1,
+                    "deactivated_count": 1,
+                    "deactivated_characters": [
+                        {
+                            "name": "Absecon",
+                            "realm": "Darrowmere",
+                            "status_code": 404,
+                            "reason": "public profile unavailable",
+                        }
+                    ],
+                },
+                [],
+            )
+            html = path.read_text(encoding="utf-8")
+
+        self.assertIn("<h2>Recent Inactive Changes</h2>", html)
+        self.assertIn("Absecon", html)
+        self.assertIn("Darrowmere", html)
+        self.assertIn("404", html)
+        self.assertIn("public profile unavailable", html)
 
     def test_account_summary_active_sections_exclude_inactive_documents(self):
         import tempfile
@@ -327,6 +363,48 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("Absecon", active_section)
         self.assertIn("Mage", class_section)
         self.assertNotIn("Warrior", class_section)
+
+    def test_account_summary_roster_by_realm_renders_active_switches(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "account_summary.html"
+            write_account_summary_markdown(
+                path,
+                "2026-09-01T19:00:00+00:00",
+                {
+                    "characters": [
+                        {
+                            "key": "us:id:1",
+                            "name": "Activeone",
+                            "realm": "Windrunner",
+                            "enabled": True,
+                        },
+                        {
+                            "key": "us:id:2",
+                            "name": "Inactiveone",
+                            "realm": "Windrunner",
+                            "enabled": False,
+                        },
+                    ]
+                },
+                {},
+                [],
+            )
+            html = path.read_text(encoding="utf-8")
+
+        roster_section = html.split("<h2>Roster By Realm</h2>", 1)[1]
+
+        self.assertIn('class="active-switch"', roster_section)
+        self.assertIn('data-roster-active-id="us:id:1"', roster_section)
+        self.assertIn('data-character-name="Activeone" checked', roster_section)
+        self.assertIn('data-roster-active-id="us:id:2"', roster_section)
+        self.assertIn('"/api/characters/enabled"', html)
+        self.assertIn('"/api/characters/activate"', html)
+        self.assertIn('id="account-status-modal-backdrop"', html)
+        self.assertIn("Activating Character", html)
+        self.assertIn("window.location.reload()", html)
 
 
 if __name__ == "__main__":

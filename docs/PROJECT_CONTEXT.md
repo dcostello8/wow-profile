@@ -42,7 +42,8 @@ Python modules:
 - `src/cli.py`: command routing and orchestration for discovery, updates, imports, summaries, full roster, and roster UI startup.
 - `src/config.py`: `.env` loading, roster YAML parsing, character merge rules, active-character filtering, and per-character update settings.
 - `src/oauth.py`: Blizzard OAuth Authorization Code flow, browser launch, localhost callback, state validation, and token exchange.
-- `src/blizzard_api.py`: Blizzard API transport, endpoint mapping, per-section fetches, and HTTP error summaries/status codes.
+- `src/blizzard/`: reusable Battle.net API client, explicit namespace handling, profile services, game-data services, and JSON cache helpers.
+- `src/blizzard_api.py`: backward-compatible facade over `src/blizzard/` for endpoint mapping, per-section fetches, and HTTP error summaries/status codes.
 - `src/local_wow.py`: lightweight Lua SavedVariables parser, local addon data normalization, and merge into generated character JSON.
 - `src/output.py`: JSON writers and self-contained HTML report generation.
 - `src/roster_ui.py`: local `ThreadingHTTPServer`, roster editor page, command status/progress endpoints, and startup refresh behavior.
@@ -75,10 +76,42 @@ BLIZZARD_REGION=us
 - `profile`
 - `equipment`
 - `specializations`
+- `statistics`
 - `professions`
 - `mythic_plus`
+- `media`
+- `reputations`
+- `titles`
 
 Per-section failures are retained in `section_status`. HTTP failures include `status_code`. If the `profile` section returns `403` or `404`, the character is marked inactive in `characters.yaml`.
+
+The reusable Blizzard client applies explicit namespaces per service:
+
+- Profile services use `profile-{region}`.
+- Game Data services use `static-{region}`.
+
+Account profile discovery remains a user OAuth flow. Public character profile updates and static Game Data lookups use client credentials.
+
+Implemented Profile API service methods:
+
+- `/profile/user/wow`
+- `/profile/user/wow/collections`
+- `/profile/user/wow/collections/mounts`
+- `/profile/user/wow/collections/pets`
+- `/profile/wow/character/{realmSlug}/{characterName}`
+- `/equipment`
+- `/specializations`
+- `/statistics`
+- `/professions`
+- `/mythic-keystone-profile`
+- `/mythic-keystone-profile/season/{seasonId}`
+- `/character-media`
+- `/reputations`
+- `/titles`
+
+Designed but not enabled by default: achievements, achievement statistics, appearance, collections, encounters, dungeon encounters, raid encounters, hunter pets, PvP summary/brackets, quests, completed quests, and soulbinds.
+
+Implemented Game Data service methods cover playable classes, talents, PvP talents, talent trees, spells, items, professions/recipes, Mythic+ dungeons/periods/seasons/affixes, journal expansions/instances/encounters, realms, connected realms, and regions.
 
 ### WoW Addon SavedVariables
 
@@ -141,6 +174,8 @@ output/
   roster.html
   fullroster.html
   account_summary.html
+  cache/
+    blizzard/
   characters/
     <name>-<realm_slug>-<id>.json
 ```
@@ -156,6 +191,22 @@ Generated character JSON contains:
   "sections": {},
   "section_status": {},
   "local_client_data": {}
+}
+```
+
+`output/roster.json` also records refresh side effects when an update marks characters inactive because their public profile returned HTTP `403` or `404`:
+
+```json
+{
+  "deactivated_count": 1,
+  "deactivated_characters": [
+    {
+      "name": "Absecon",
+      "realm": "Darrowmere",
+      "status_code": 404,
+      "reason": "public profile unavailable"
+    }
+  ]
 }
 ```
 
@@ -209,7 +260,10 @@ Current behavior:
 - Expansion Skill Levels are collapsible by profession.
 - Individual expansion rows are sorted newest to oldest: Midnight first, Classic last.
 - `Active Class Coverage` and `Active Profession Coverage` are based only on active generated character documents.
-- `Roster By Realm` lists all discovered characters and shows whether each is active.
+- Recent refresh-driven inactive changes are shown when the latest `output/roster.json` includes `deactivated_characters`.
+- `Roster By Realm` lists all discovered characters and includes an Active switch when served through `roster-ui`.
+- Turning a Roster By Realm switch on first fetches Battle.net character data. If the public profile fetch fails, the character remains inactive and the status window shows the error.
+- Turning a Roster By Realm switch off immediately writes `enabled: false`, refreshes the generated summary, and reloads the page.
 
 ### Roster UI
 
@@ -225,6 +279,7 @@ Capabilities:
 - Run discovery.
 - Run refresh/update.
 - Display command status in a popup with progress indicator, current/total character counter, current character label, and recent command output.
+- Display characters set inactive during a refresh because public profiles are unavailable.
 
 The server starts a profile refresh immediately when `roster-ui` starts. The browser page polls `/api/update/status`.
 
@@ -274,8 +329,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed commit: `ec5fd7b Improve roster UI startup and account summary labels`.
-- There are uncommitted changes after that commit, including public profile 403/404 inactive handling, active-only Account Summary filtering, additional tests, `characters.yaml` state changes from recent update activity, and these documentation updates.
+- Last committed baseline observed: `5e4165a Document current workflow and handle inaccessible profiles`.
+- There are uncommitted changes after that commit, including Account Summary active switches, guarded activation behavior, Phase 1 Blizzard API architecture, expanded default profile sections, tests, docs, and a local `characters.yaml` active-state change.
 
 ## Validation
 
@@ -288,7 +343,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 29 tests
+Ran 49 tests
 OK
 ```
 

@@ -79,6 +79,20 @@ def table(headers, rows):
     )
 
 
+def deactivated_characters_table(characters):
+    rows = []
+    for character in characters or []:
+        rows.append([
+            character.get("name"),
+            character.get("realm"),
+            character.get("status_code"),
+            character.get("reason") or "public profile unavailable",
+        ])
+    if not rows:
+        return ""
+    return table(["Character", "Realm", "HTTP", "Reason"], rows)
+
+
 def stat_card(label, value):
     return (
         '<div class="stat">'
@@ -225,6 +239,150 @@ def html_page(title, generated_at, sections):
       font-weight: 700;
       cursor: pointer;
     }}
+    .active-switch {{
+      position: relative;
+      display: inline-flex;
+      width: 46px;
+      height: 26px;
+      vertical-align: middle;
+    }}
+    .active-switch input {{
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }}
+    .active-slider {{
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      background: #8a94a6;
+      transition: .16s;
+    }}
+    .active-slider::before {{
+      content: "";
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      left: 3px;
+      top: 3px;
+      border-radius: 50%;
+      background: #fff;
+      transition: .16s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .24);
+    }}
+    .active-switch input:checked + .active-slider {{
+      background: var(--good);
+    }}
+    .active-switch input:checked + .active-slider::before {{
+      transform: translateX(20px);
+    }}
+    .modal-backdrop {{
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, .42);
+      z-index: 20;
+    }}
+    .modal-backdrop[hidden] {{
+      display: none;
+    }}
+    .status-modal {{
+      width: min(560px, 100%);
+      max-height: min(680px, calc(100vh - 40px));
+      overflow: hidden;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 24px 72px rgba(15, 23, 42, .28);
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }}
+    .status-modal-header {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 18px 10px;
+    }}
+    .status-modal-title {{
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 18px;
+      font-weight: 700;
+    }}
+    .status-indicator {{
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--muted);
+      box-shadow: 0 0 0 4px #eef2f7;
+    }}
+    .status-indicator.running {{
+      background: var(--accent);
+      animation: pulse 1.2s ease-in-out infinite;
+    }}
+    .status-indicator.success {{
+      background: var(--good);
+    }}
+    .status-indicator.failed {{
+      background: var(--bad);
+    }}
+    @keyframes pulse {{
+      0%, 100% {{ transform: scale(1); opacity: .8; }}
+      50% {{ transform: scale(1.18); opacity: 1; }}
+    }}
+    .status-close {{
+      min-height: 32px;
+      min-width: 32px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+    }}
+    .status-modal-body {{
+      padding: 0 18px 16px;
+    }}
+    .status-message {{
+      color: var(--muted);
+      min-height: 20px;
+      margin-bottom: 10px;
+    }}
+    .progress-track {{
+      height: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #eef2f7;
+      border: 1px solid var(--line);
+    }}
+    .progress-fill {{
+      height: 100%;
+      width: 36%;
+      background: var(--accent);
+      animation: slide 1.1s ease-in-out infinite;
+    }}
+    @keyframes slide {{
+      0% {{ transform: translateX(-110%); }}
+      100% {{ transform: translateX(300%); }}
+    }}
+    .status-output {{
+      margin: 0;
+      padding: 12px 18px 16px;
+      border-top: 1px solid var(--line);
+      overflow: auto;
+      max-height: 260px;
+      background: #0f172a;
+      color: #dbeafe;
+      font: 12px Consolas, monospace;
+      white-space: pre-wrap;
+    }}
     .detail-row[hidden] {{
       display: none;
     }}
@@ -318,9 +476,60 @@ def html_page(title, generated_at, sections):
     </header>
     {body}
   </main>
+  <div class="modal-backdrop" id="account-status-modal-backdrop" hidden>
+    <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="account-status-modal-title">
+      <div class="status-modal-header">
+        <div class="status-modal-title">
+          <span class="status-indicator" id="account-status-indicator"></span>
+          <span id="account-status-modal-title">Working</span>
+        </div>
+        <button class="status-close" id="account-status-close" type="button" aria-label="Close status">x</button>
+      </div>
+      <div class="status-modal-body">
+        <div class="status-message" id="account-status-message"></div>
+        <div class="progress-track" id="account-progress-track"><div class="progress-fill" id="account-progress-fill"></div></div>
+      </div>
+      <pre class="status-output" id="account-status-output"></pre>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
+
+  const accountStatus = {{
+    backdrop: document.getElementById("account-status-modal-backdrop"),
+    title: document.getElementById("account-status-modal-title"),
+    indicator: document.getElementById("account-status-indicator"),
+    close: document.getElementById("account-status-close"),
+    message: document.getElementById("account-status-message"),
+    progressTrack: document.getElementById("account-progress-track"),
+    output: document.getElementById("account-status-output")
+  }};
+
+  function showAccountStatus(title, message, state = "running", output = "") {{
+    accountStatus.title.textContent = title;
+    accountStatus.message.textContent = message || "";
+    accountStatus.indicator.className = "status-indicator " + state;
+    accountStatus.output.textContent = output || "";
+    accountStatus.progressTrack.hidden = state !== "running";
+    accountStatus.close.disabled = state === "running";
+    accountStatus.backdrop.hidden = false;
+  }}
+
+  function closeAccountStatus() {{
+    accountStatus.backdrop.hidden = true;
+  }}
+
+  async function postJson(path, payload) {{
+    const response = await fetch(path, {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify(payload)
+    }});
+    const text = await response.text();
+    if (!response.ok) throw new Error(text || `HTTP ${{response.status}}`);
+    return text ? JSON.parse(text) : {{}};
+  }}
 
   function compareText(left, right) {{
     return String(left ?? "").localeCompare(String(right ?? ""), undefined, {{ sensitivity: "base", numeric: true }});
@@ -419,6 +628,53 @@ def html_page(title, generated_at, sections):
   for (const button of document.querySelectorAll("[data-enabled-sort]")) {{
     button.addEventListener("click", () => sortEnabledCharacters(button.dataset.enabledSort));
   }}
+  for (const input of document.querySelectorAll("[data-roster-active-id]")) {{
+    input.addEventListener("change", async event => {{
+      const checkbox = event.currentTarget;
+      const previous = !checkbox.checked;
+      checkbox.disabled = true;
+      const character = checkbox.dataset.characterName || "character";
+      try {{
+        if (checkbox.checked) {{
+          showAccountStatus(
+            "Activating Character",
+            `Fetching Battle.net profile data for ${{character}}...`,
+            "running"
+          );
+          const result = await postJson(
+            "/api/characters/activate",
+            {{ identity: checkbox.dataset.rosterActiveId }}
+          );
+          showAccountStatus(
+            "Character Activated",
+            result.message || `${{character}} is active.`,
+            "success"
+          );
+        }} else {{
+          showAccountStatus("Saving Character", `Setting ${{character}} inactive...`, "running");
+          await postJson(
+            "/api/characters/enabled",
+            {{ identity: checkbox.dataset.rosterActiveId, enabled: false }}
+          );
+          showAccountStatus("Character Inactive", `${{character}} is inactive.`, "success");
+        }}
+        window.location.reload();
+      }} catch (error) {{
+        checkbox.checked = previous;
+        checkbox.disabled = false;
+        checkbox.title = error.message;
+        showAccountStatus(
+          checkbox.checked ? "Character Active" : "Activation Failed",
+          checkbox.checked
+            ? `${{character}} remains active.`
+            : `${{character}} was not made active.`,
+          "failed",
+          error.message
+        );
+      }}
+    }});
+  }}
+  if (accountStatus.close) accountStatus.close.addEventListener("click", closeAccountStatus);
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -909,6 +1165,41 @@ def character_identity_key(character):
     ])
 
 
+def active_switch_cell(character):
+    checked = " checked" if character.get("enabled") else ""
+    identity = html_cell(character_identity_key(character))
+    character_name = html_cell(character.get("name") or "character")
+    title = "Active" if character.get("enabled") else "Inactive"
+    return (
+        f'<label class="active-switch" title="{title}">'
+        f'<input type="checkbox" data-roster-active-id="{identity}" '
+        f'data-character-name="{character_name}"{checked}>'
+        '<span class="active-slider"></span>'
+        "</label>"
+    )
+
+
+def roster_by_realm_table(characters):
+    body = []
+    for character in sorted(characters, key=lambda item: (item.get("name") or "").lower()):
+        body.append(
+            "<tr>"
+            + html_tag("td", character.get("name"))
+            + f'<td>{active_switch_cell(character)}</td>'
+            + html_tag("td", "yes" if character.get("stale") else "no")
+            + "</tr>"
+        )
+    return (
+        '<div class="table-wrap"><table><thead><tr>'
+        + html_tag("th", "Character")
+        + html_tag("th", "Active")
+        + html_tag("th", "Stale")
+        + "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
 def write_account_summary_markdown(path, generated_at, roster, index, character_documents):
     roster_characters = [
         character
@@ -939,6 +1230,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
             + stat_card("Updated", index.get("updated_count", 0))
             + stat_card("Partial", index.get("partial_count", 0))
             + stat_card("Failed", index.get("failed_count", 0))
+            + stat_card("Set Inactive", index.get("deactivated_count", 0))
             + "</section>"
         )
         if index.get("generated_at"):
@@ -947,6 +1239,9 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
                 + local_time(index.get("generated_at"))
                 + "</div>"
             )
+        if index.get("deactivated_characters"):
+            sections.append("<h2>Recent Inactive Changes</h2>")
+            sections.append(deactivated_characters_table(index.get("deactivated_characters")))
 
     sections.append("<h2>Active Characters</h2>")
     sections.append(enabled_characters_table(active_documents))
@@ -974,15 +1269,8 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         grouped.setdefault(realm, []).append(character)
     sections.append("<h2>Roster By Realm</h2>")
     for realm in sorted(grouped):
-        rows = []
-        for character in sorted(grouped[realm], key=lambda item: (item.get("name") or "").lower()):
-            rows.append([
-                character.get("name"),
-                "yes" if character.get("enabled") else "no",
-                "yes" if character.get("stale") else "no",
-            ])
         sections.append(f"<h2>{html_cell(realm)}</h2>")
-        sections.append(table(["Character", "Active", "Stale"], rows))
+        sections.append(roster_by_realm_table(grouped[realm]))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

@@ -4,11 +4,33 @@ import subprocess
 import sys
 import threading
 import webbrowser
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .config import CHARACTERS_FILE, load_existing_roster, save_roster
+from .blizzard_api import (
+    fetch_enabled_character_sections,
+    region_hosts,
+)
+from .config import (
+    CHARACTERS_FILE,
+    DEFAULT_UPDATE_SETTINGS,
+    load_config,
+    load_existing_roster,
+    require_character_field,
+    save_roster,
+    selected_update_sections,
+    update_settings_for_character,
+)
+from .oauth import get_client_credentials_token
+from .output import (
+    ROSTER_INDEX_FILE,
+    character_identity_key,
+    character_output_path,
+    roster_index_entry,
+    write_json,
+)
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -52,22 +74,120 @@ def roster_payload(path=CHARACTERS_FILE):
     }
 
 
-def set_character_enabled(identity, enabled, path=CHARACTERS_FILE):
-    roster = load_existing_roster(path)
-    changed = False
+def load_json_file(path):
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def find_roster_character(roster, identity):
     for character in roster.get("characters", []):
         if not isinstance(character, dict):
             continue
         if character_identity(character) == identity:
-            character["enabled"] = bool(enabled)
-            changed = True
-            break
+            return character
+    raise KeyError(f"Character not found: {identity}")
 
-    if not changed:
-        raise KeyError(f"Character not found: {identity}")
+
+def set_character_enabled(identity, enabled, path=CHARACTERS_FILE):
+    roster = load_existing_roster(path)
+    character = find_roster_character(roster, identity)
+    character["enabled"] = bool(enabled)
 
     save_roster(roster, path)
     return roster_payload(path)
+
+
+def activate_character_with_profile_update(identity, path=CHARACTERS_FILE):
+    roster = load_existing_roster(path)
+    character = find_roster_character(roster, identity)
+    display_name = f"{character.get('name')} - {character.get('realm')}"
+    require_character_field(character, "name")
+    require_character_field(character, "realm_slug")
+
+    config = load_config()
+    hosts = region_hosts(config["region"])
+    access_token = get_client_credentials_token(config, hosts)
+    settings = update_settings_for_character(roster, character)
+    sections = selected_update_sections(settings)
+    if "profile" not in sections:
+        sections.insert(0, "profile")
+
+    data, section_status = fetch_enabled_character_sections(
+        config,
+        hosts,
+        access_token,
+        character,
+        sections,
+    )
+    profile_status = section_status.get("profile") or {}
+    if profile_status.get("status") != "updated":
+        error = profile_status.get("error") or "Public profile is unavailable."
+        raise RuntimeError(f"Could not activate {display_name}: {error}")
+
+    failed_sections = [
+        section
+        for section, result in section_status.items()
+        if result.get("status") != "updated"
+    ]
+    status = "updated" if not failed_sections else "partial"
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+
+    character["enabled"] = True
+    save_roster(roster, path)
+
+    output_path = character_output_path(character)
+    existing_document = load_json_file(output_path) or {}
+    document = {
+        "retrieved_at": retrieved_at,
+        "source": "Battle.net World of Warcraft Profile API",
+        "character": {
+            "key": character.get("key"),
+            "name": character.get("name"),
+            "realm": character.get("realm"),
+            "realm_slug": character.get("realm_slug"),
+            "region": character.get("region"),
+            "id": character.get("id"),
+        },
+        "update_settings": settings,
+        "sections": data,
+        "section_status": section_status,
+    }
+    if existing_document.get("local_client_data"):
+        document["local_client_data"] = existing_document["local_client_data"]
+    write_json(output_path, document)
+
+    index = load_json_file(ROSTER_INDEX_FILE) or {
+        "generated_at": retrieved_at,
+        "source": "Battle.net World of Warcraft Profile API",
+        "default_update": dict(DEFAULT_UPDATE_SETTINGS),
+        "characters": [],
+    }
+    index["generated_at"] = retrieved_at
+    entry = {
+        **roster_index_entry(character, status, output_path, profile=data.get("profile")),
+        "sections": section_status,
+    }
+    entry_key = character_identity_key(entry)
+    characters = [
+        item
+        for item in index.get("characters", [])
+        if character_identity_key(item) != entry_key
+    ]
+    characters.append(entry)
+    index["characters"] = characters
+    index["character_count"] = len(characters)
+    index["updated_count"] = sum(1 for item in characters if item.get("status") == "updated")
+    index["partial_count"] = sum(1 for item in characters if item.get("status") == "partial")
+    index["failed_count"] = sum(1 for item in characters if item.get("status") == "failed")
+    write_json(ROSTER_INDEX_FILE, index)
+
+    return {
+        "message": f"Activated {display_name}.",
+        "sections": section_status,
+        "roster": roster_payload(path),
+    }
 
 
 def set_all_enabled(enabled, realm=None, path=CHARACTERS_FILE):
@@ -407,6 +527,12 @@ HTML = r"""<!doctype html>
       color: var(--muted);
       font-size: 13px;
     }
+    .status-side-effects {
+      margin-top: 10px;
+      color: var(--warn);
+      font-size: 13px;
+      font-weight: 600;
+    }
     .status-output {
       margin: 0;
       padding: 12px 18px 16px;
@@ -496,6 +622,7 @@ HTML = r"""<!doctype html>
           <span id="progress-count"></span>
           <span id="progress-label"></span>
         </div>
+        <div class="status-side-effects" id="status-side-effects"></div>
       </div>
       <pre class="status-output" id="status-output"></pre>
     </section>
@@ -526,6 +653,7 @@ HTML = r"""<!doctype html>
       progressFill: document.getElementById("progress-fill"),
       progressCount: document.getElementById("progress-count"),
       progressLabel: document.getElementById("progress-label"),
+      statusSideEffects: document.getElementById("status-side-effects"),
       statusOutput: document.getElementById("status-output"),
       home: document.getElementById("home"),
       refresh: document.getElementById("refresh"),
@@ -553,10 +681,14 @@ HTML = r"""<!doctype html>
 
     function updateStatusModal(title, status, runningMessage, doneMessage, failedMessage) {
       const progress = status.progress || {};
+      const deactivated = status.deactivated || {};
       const state = status.running ? "running" : (status.returncode === 0 ? "success" : "failed");
-      const message = status.running
+      let message = status.running
         ? runningMessage
         : (status.returncode === 0 ? doneMessage : failedMessage);
+      if (!status.running && deactivated.count) {
+        message += ` ${deactivated.count} character${deactivated.count === 1 ? "" : "s"} set inactive.`;
+      }
       showStatusModal(title, message, state);
 
       if (progress.total) {
@@ -577,6 +709,14 @@ HTML = r"""<!doctype html>
       els.statusOutput.textContent = output.split("\n").slice(-20).join("\n");
       els.statusOutput.scrollTop = els.statusOutput.scrollHeight;
       els.statusClose.disabled = status.running;
+      if (deactivated.count) {
+        const names = (deactivated.characters || []).slice(0, 4).join(", ");
+        els.statusSideEffects.textContent = names
+          ? `Set inactive: ${names}${deactivated.count > 4 ? "..." : ""}`
+          : `${deactivated.count} characters set inactive because public profiles are unavailable.`;
+      } else {
+        els.statusSideEffects.textContent = "";
+      }
     }
 
     function escapeHtml(value) {
@@ -758,9 +898,17 @@ HTML = r"""<!doctype html>
 
         els.refresh.disabled = false;
         if (status.returncode === 0) {
-          await load("Profile update completed and roster reloaded.");
+          const deactivated = status.deactivated || {};
+          await load(deactivated.count
+            ? `Profile update completed. ${deactivated.count} character${deactivated.count === 1 ? "" : "s"} set inactive.`
+            : "Profile update completed and roster reloaded.");
         } else if (status.returncode !== null) {
-          setStatus("Profile update failed. " + (status.output || "").slice(-500));
+          const deactivated = status.deactivated || {};
+          setStatus(
+            "Profile update failed. " +
+            (deactivated.count ? `${deactivated.count} character${deactivated.count === 1 ? "" : "s"} set inactive. ` : "") +
+            (status.output || "").slice(-500)
+          );
         }
       } catch (error) {
         els.refresh.disabled = false;
@@ -825,6 +973,7 @@ class CommandState:
         self.returncode = None
         self.output = ""
         self.progress = {}
+        self.deactivated = {"count": 0, "characters": []}
 
     def start(self):
         with self.lock:
@@ -834,6 +983,7 @@ class CommandState:
             self.returncode = None
             self.output = ""
             self.progress = {}
+            self.deactivated = {"count": 0, "characters": []}
 
         thread = threading.Thread(target=self._run, daemon=True)
         thread.start()
@@ -867,13 +1017,20 @@ class CommandState:
         if not line:
             return
         progress = self.parse_progress(line)
+        deactivated = self.parse_deactivation(line)
         with self.lock:
             self.output = f"{self.output}\n{line}".strip()
             if progress:
                 self.progress.update(progress)
+            if deactivated:
+                self.deactivated["count"] += 1
+                self.deactivated["characters"].append(deactivated)
 
     def parse_progress(self, line):
         return {}
+
+    def parse_deactivation(self, line):
+        return None
 
     def snapshot(self):
         with self.lock:
@@ -882,6 +1039,10 @@ class CommandState:
                 "returncode": self.returncode,
                 "output": self.output,
                 "progress": dict(self.progress),
+                "deactivated": {
+                    "count": self.deactivated["count"],
+                    "characters": list(self.deactivated["characters"]),
+                },
             }
 
 
@@ -892,6 +1053,9 @@ class DiscoverState(CommandState):
 
 class UpdateState(CommandState):
     PROGRESS_PATTERN = re.compile(r"^Updating \[(\d+)/(\d+)\] (.+)\.\.\.$")
+    DEACTIVATED_PATTERN = re.compile(
+        r"^Set (.+) inactive because its public profile is unavailable\.$"
+    )
 
     def __init__(self):
         super().__init__(["update"])
@@ -908,6 +1072,12 @@ class UpdateState(CommandState):
             "label": match.group(3),
             "percent": round((current / total) * 100) if total else 0,
         }
+
+    def parse_deactivation(self, line):
+        match = self.DEACTIVATED_PATTERN.match(line)
+        if not match:
+            return None
+        return match.group(1)
 
 
 def start_initial_update(server):
@@ -959,15 +1129,38 @@ class RosterUIHandler(BaseHTTPRequestHandler):
             except KeyError as exc:
                 self.send_error(404, str(exc))
                 return
+            self.server.on_roster_change()
             self.send_json(data)
             return
         if parsed.path == "/api/characters/enabled-all":
             payload = self.read_json()
-            self.send_json(set_all_enabled(
+            data = set_all_enabled(
                 payload.get("enabled") is True,
                 payload.get("realm"),
                 self.server.roster_path,
-            ))
+            )
+            self.server.on_roster_change()
+            self.send_json(data)
+            return
+        if parsed.path == "/api/characters/activate":
+            payload = self.read_json()
+            identity = payload.get("identity")
+            if not identity:
+                self.send_error(400, "Missing identity")
+                return
+            try:
+                data = activate_character_with_profile_update(
+                    identity,
+                    self.server.roster_path,
+                )
+            except KeyError as exc:
+                self.send_text(str(exc), "text/plain; charset=utf-8", status=404)
+                return
+            except Exception as exc:
+                self.send_text(str(exc), "text/plain; charset=utf-8", status=409)
+                return
+            self.server.on_roster_change()
+            self.send_json(data)
             return
         if parsed.path == "/api/discover":
             started = self.server.discover_state.start()
@@ -997,9 +1190,9 @@ class RosterUIHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
-    def send_text(self, text, content_type):
+    def send_text(self, text, content_type, status=200):
         encoded = text.encode("utf-8")
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
@@ -1009,11 +1202,12 @@ class RosterUIHandler(BaseHTTPRequestHandler):
         return
 
 
-def run_roster_ui(host=DEFAULT_HOST, port=DEFAULT_PORT, path=CHARACTERS_FILE):
+def run_roster_ui(host=DEFAULT_HOST, port=DEFAULT_PORT, path=CHARACTERS_FILE, on_roster_change=None):
     server = ThreadingHTTPServer((host, port), RosterUIHandler)
     server.roster_path = path
     server.discover_state = DiscoverState()
     server.update_state = UpdateState()
+    server.on_roster_change = on_roster_change or (lambda: None)
     started = start_initial_update(server)
     url = f"http://{host}:{port}/"
     threading.Timer(0.25, lambda: webbrowser.open(url)).start()
