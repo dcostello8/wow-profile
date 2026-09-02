@@ -109,8 +109,10 @@ Implemented Account Summary features:
 - Top-level stats.
 - Quiet local-time Last Update metadata.
 - `Active Characters` table.
-- Text, realm, and class filters for Active Characters.
-- Sortable character/realm/level/class/spec/iLevel columns.
+- Refresh button next to the `Active Characters` title, using the local command/status endpoints from the Account Summary page.
+- Faction column in Active Characters.
+- Text, realm, faction, and class filters for Active Characters.
+- Sortable character/realm/faction/level/class/spec/iLevel columns.
 - Expandable active character rows.
 - Per-character expanded details:
   - Spec Details.
@@ -123,7 +125,8 @@ Implemented Account Summary features:
 - `Active Class Coverage`.
 - `Active Profession Coverage`, rolled up by realm.
 - `Recent Inactive Changes` when the latest refresh set characters inactive due to public profile `403` or `404`.
-- `Roster By Realm`, which still lists all discovered characters and now includes an Active switch.
+- `Roster By Realm`, which now starts as a collapsed realm/server list and shows character Active switches when a realm is expanded.
+- Discover button next to the `Roster By Realm` title, using the local command/status endpoints from the Account Summary page.
 - Account Summary activation now fetches Battle.net character data before writing `enabled: true`; failed profile fetches leave the character inactive and show the error in a status window.
 
 Bug fixed:
@@ -144,8 +147,8 @@ Added `src/roster_ui.py`.
 
 Serves:
 
-- `/` Account Summary.
-- `/roster-ui` roster editor.
+- `/` Account Summary, now the primary local control surface.
+- `/roster-ui` legacy roster editor, retained temporarily while remaining unique controls are moved or retired.
 - `/api/characters`
 - `/api/characters/enabled`
 - `/api/characters/enabled-all`
@@ -167,6 +170,9 @@ UI capabilities:
 - Status popup and inline status call out characters set inactive during refresh because public profiles are unavailable.
 - Roster changes made through Account Summary switches regenerate the local summary before the page reloads.
 - Account Summary switch activation uses a status window while the single-character profile update runs.
+- Account Summary Refresh and Discover buttons open modal status windows immediately, poll command progress/output, refresh the generated summary, and delay reload briefly after success so the modal state is visible.
+- Account Summary now shows a clear local-API message if opened directly from `output/account_summary.html` instead of through `wow_profile.py roster-ui`.
+- Account Summary no longer links users to the legacy `/roster-ui` page.
 
 Startup behavior:
 
@@ -289,7 +295,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 49 tests in 0.068s
+Ran 50 tests in 0.593s
 OK
 ```
 
@@ -318,23 +324,17 @@ main
 Last pushed commit noted at the start of this continuation:
 
 ```text
-5e4165a Document current workflow and handle inaccessible profiles
+568aec4 Add guarded roster activation and Blizzard API services
 ```
 
 Working tree after this continuation has uncommitted changes:
 
-- `src/cli.py`
-- `src/config.py`
-- `src/blizzard_api.py`
-- `src/blizzard/`
+- `docs/DEVELOPMENT_LOG.md`
+- `docs/PROJECT_CONTEXT.md`
 - `src/output.py`
 - `src/roster_ui.py`
-- `tests/test_blizzard_client.py`
-- `tests/test_cli.py`
 - `tests/test_output.py`
 - `tests/test_roster_ui.py`
-- `docs/PROJECT_CONTEXT.md`
-- `docs/DEVELOPMENT_LOG.md`
 
 Ignored local files remain:
 
@@ -353,6 +353,6 @@ Ignored local files remain:
 
 ## Next Logical Development Step
 
-Review the uncommitted Account Summary active-switch, guarded activation, side-effect visibility, and Phase 1 Blizzard API architecture changes. Optionally run a live `wow_profile.py update`/`roster-ui` smoke test with local Blizzard credentials, then commit and push if the behavior is accepted.
+Continue moving any remaining useful `/roster-ui` controls into Account Summary, then retire or redirect the legacy roster editor page. Optionally run a live `wow_profile.py update`/`roster-ui` smoke test with local Blizzard credentials, then commit and push if the behavior is accepted.
 
 After that, the next useful product step is to enrich generated character documents with selected cached reference data, starting with item/spell/profession IDs already present in profile and local addon data.

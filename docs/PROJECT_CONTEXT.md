@@ -254,20 +254,24 @@ Current behavior:
 - Shows top-level roster/update stats.
 - Last Update is a quiet metadata line and is formatted in the browser's local timezone.
 - `Active Characters` only includes characters currently active in `characters.yaml`.
-- Active character rows can be filtered by text, realm, and class.
-- Active character rows can be sorted by character, realm, level, class, active spec, and iLevel.
+- Active character rows include Faction.
+- Active character rows can be filtered by text, realm, faction, and class.
+- Active character rows can be sorted by character, realm, faction, level, class, active spec, and iLevel.
 - Expanding an active character shows Spec Details, Equipment Sets, and Expansion Skill Levels.
 - Expansion Skill Levels are collapsible by profession.
 - Individual expansion rows are sorted newest to oldest: Midnight first, Classic last.
 - `Active Class Coverage` and `Active Profession Coverage` are based only on active generated character documents.
 - Recent refresh-driven inactive changes are shown when the latest `output/roster.json` includes `deactivated_characters`.
-- `Roster By Realm` lists all discovered characters and includes an Active switch when served through `roster-ui`.
+- `Roster By Realm` starts as a collapsed realm/server list; expanding a realm shows its characters and Active switches when served through the local Account Summary server.
+- `Roster By Realm` has a Discover button beside the section title; it opens a modal status window, starts discovery, polls status, refreshes the generated summary, then reloads after a short success message.
+- `Active Characters` has a Refresh button beside the section title; it opens a modal status window, starts the active-character update, polls status/progress, refreshes the generated summary, then reloads after a short success message.
+- Account Summary command buttons and Active switches require the page to be served by `wow_profile.py roster-ui`; if opened directly from `output/account_summary.html`, the page shows a status-window message explaining that the local API is unavailable.
 - Turning a Roster By Realm switch on first fetches Battle.net character data. If the public profile fetch fails, the character remains inactive and the status window shows the error.
-- Turning a Roster By Realm switch off immediately writes `enabled: false`, refreshes the generated summary, and reloads the page.
+- Turning a Roster By Realm switch off immediately writes `enabled: false`, refreshes the generated summary, shows a modal status window, and reloads after a short success message.
 
 ### Roster UI
 
-Served at `/roster-ui`.
+Transitional legacy page served at `/roster-ui`. The product direction is to make Account Summary the primary control surface and remove this separate page once any remaining useful controls are moved or retired.
 
 Capabilities:
 
@@ -343,7 +347,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 49 tests
+Ran 50 tests
 OK
 ```
 

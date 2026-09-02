@@ -94,6 +94,7 @@ class OutputTests(unittest.TestCase):
             "sections": {
                 "profile": {
                     "level": 90,
+                    "faction": {"name": "Alliance"},
                     "character_class": {"name": "Shaman"},
                     "active_spec": {"name": "Restoration"},
                     "equipped_item_level": 282,
@@ -156,11 +157,16 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("<th>Spec ID</th>", html)
         self.assertIn('id="enabled-character-filter"', html)
         self.assertIn('id="enabled-realm-filter"', html)
+        self.assertIn('id="enabled-faction-filter"', html)
         self.assertIn('id="enabled-class-filter"', html)
         self.assertIn('<option value="Windrunner">Windrunner</option>', html)
+        self.assertIn('<option value="Alliance">Alliance</option>', html)
+        self.assertIn('data-faction="Alliance"', html)
+        self.assertIn(">Faction</button></th>", html)
         self.assertIn('<option value="Shaman">Shaman</option>', html)
         self.assertIn('data-enabled-sort="name"', html)
         self.assertIn('data-enabled-sort="realm"', html)
+        self.assertIn('data-enabled-sort="faction"', html)
         self.assertIn("Restoration", html)
         self.assertIn("282.4 equipped / 286.8 avg", html)
         self.assertIn("Resto", html)
@@ -273,6 +279,16 @@ class OutputTests(unittest.TestCase):
         self.assertIn("formatLocalTimes()", html)
         self.assertIn("#enabled-character-body > tr.expandable-row", html)
         self.assertIn("<h2>Active Characters</h2>", html)
+        self.assertIn('data-summary-command="update"', html)
+        self.assertIn('data-summary-command="discover"', html)
+        self.assertIn('"/api/update/status"', html)
+        self.assertIn('"/api/discover/status"', html)
+        self.assertIn('"/api/summary/refresh"', html)
+        self.assertIn("Refreshing Account Summary...", html)
+        self.assertIn('split("\\\\n").slice(-20).join("\\\\n")', html)
+        self.assertIn("reloadAccountSummary", html)
+        self.assertIn("Open Account Summary through http://127.0.0.1:8765/", html)
+        self.assertNotIn('<a href="/roster-ui">Roster UI</a>', html)
         self.assertIn('<div class="stat-label">Active</div>', html)
         self.assertIn('<div class="stat-label">Set Inactive</div>', html)
         self.assertIn("<h2>Active Class Coverage</h2>", html)
@@ -346,11 +362,11 @@ class OutputTests(unittest.TestCase):
                 [
                     {
                         "character": {"key": "us:id:1", "name": "Activeone", "realm": "Windrunner"},
-                        "sections": {"profile": {"character_class": {"name": "Mage"}}},
+                        "sections": {"profile": {"faction": {"name": "Alliance"}, "character_class": {"name": "Mage"}}},
                     },
                     {
                         "character": {"key": "us:id:2", "name": "Absecon", "realm": "Darrowmere"},
-                        "sections": {"profile": {"character_class": {"name": "Warrior"}}},
+                        "sections": {"profile": {"faction": {"name": "Horde"}, "character_class": {"name": "Warrior"}}},
                     },
                 ],
             )
@@ -361,6 +377,8 @@ class OutputTests(unittest.TestCase):
 
         self.assertIn("Activeone", active_section)
         self.assertNotIn("Absecon", active_section)
+        self.assertIn("Alliance", active_section)
+        self.assertNotIn("Horde", active_section)
         self.assertIn("Mage", class_section)
         self.assertNotIn("Warrior", class_section)
 
@@ -395,11 +413,19 @@ class OutputTests(unittest.TestCase):
             html = path.read_text(encoding="utf-8")
 
         roster_section = html.split("<h2>Roster By Realm</h2>", 1)[1]
+        active_section = html.split("<h2>Active Characters</h2>", 1)[1].split("<h2>Active Class Coverage</h2>", 1)[0]
 
+        self.assertIn('data-summary-command="update"', active_section)
+        self.assertIn('data-summary-command="discover"', roster_section)
+        self.assertIn('data-detail-target="roster-realm-0"', roster_section)
+        self.assertIn('<tr id="roster-realm-0" class="detail-row" hidden>', roster_section)
+        self.assertIn("<th>Realm</th>", roster_section)
+        self.assertIn("<td>Windrunner</td>", roster_section)
         self.assertIn('class="active-switch"', roster_section)
         self.assertIn('data-roster-active-id="us:id:1"', roster_section)
         self.assertIn('data-character-name="Activeone" checked', roster_section)
         self.assertIn('data-roster-active-id="us:id:2"', roster_section)
+        self.assertNotIn("<h2>Windrunner</h2>", roster_section)
         self.assertIn('"/api/characters/enabled"', html)
         self.assertIn('"/api/characters/activate"', html)
         self.assertIn('id="account-status-modal-backdrop"', html)

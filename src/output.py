@@ -102,6 +102,19 @@ def stat_card(label, value):
     )
 
 
+def section_heading(title, action_label=None, action_command=None, primary=False):
+    if not action_label or not action_command:
+        return f"<h2>{html_cell(title)}</h2>"
+    class_attr = ' class="primary"' if primary else ""
+    return (
+        '<div class="section-heading">'
+        f"<h2>{html_cell(title)}</h2>"
+        f'<button{class_attr} type="button" data-summary-command="{html_cell(action_command)}">'
+        f"{html_cell(action_label)}</button>"
+        "</div>"
+    )
+
+
 def local_time(value):
     return (
         f'<time class="local-time" datetime="{html_cell(value)}" data-local-time>'
@@ -355,6 +368,15 @@ def html_page(title, generated_at, sections):
       min-height: 20px;
       margin-bottom: 10px;
     }}
+    .progress-meta {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 20px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
     .progress-track {{
       height: 10px;
       overflow: hidden;
@@ -429,6 +451,37 @@ def html_page(title, generated_at, sections):
       text-decoration: none;
       font-weight: 600;
     }}
+    .section-heading {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 28px 0 12px;
+    }}
+    .section-heading h2 {{
+      margin: 0;
+    }}
+    .section-heading button {{
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--accent);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }}
+    .section-heading button.primary {{
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }}
+    .section-heading button:disabled {{
+      opacity: .55;
+      cursor: default;
+    }}
     .table-tools {{
       display: flex;
       gap: 10px;
@@ -471,7 +524,6 @@ def html_page(title, generated_at, sections):
       <div class="generated">Generated: {html_cell(generated_at)}</div>
       <nav class="nav">
         <a href="/">Account Summary</a>
-        <a href="/roster-ui">Roster UI</a>
       </nav>
     </header>
     {body}
@@ -488,6 +540,10 @@ def html_page(title, generated_at, sections):
       <div class="status-modal-body">
         <div class="status-message" id="account-status-message"></div>
         <div class="progress-track" id="account-progress-track"><div class="progress-fill" id="account-progress-fill"></div></div>
+        <div class="progress-meta">
+          <span id="account-progress-count"></span>
+          <span id="account-progress-label"></span>
+        </div>
       </div>
       <pre class="status-output" id="account-status-output"></pre>
     </section>
@@ -503,15 +559,24 @@ def html_page(title, generated_at, sections):
     close: document.getElementById("account-status-close"),
     message: document.getElementById("account-status-message"),
     progressTrack: document.getElementById("account-progress-track"),
+    progressCount: document.getElementById("account-progress-count"),
+    progressLabel: document.getElementById("account-progress-label"),
     output: document.getElementById("account-status-output")
   }};
 
-  function showAccountStatus(title, message, state = "running", output = "") {{
+  function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
     accountStatus.title.textContent = title;
     accountStatus.message.textContent = message || "";
     accountStatus.indicator.className = "status-indicator " + state;
     accountStatus.output.textContent = output || "";
     accountStatus.progressTrack.hidden = state !== "running";
+    if (progress && progress.total) {{
+      accountStatus.progressCount.textContent = `${{progress.current || 0}} of ${{progress.total}} characters`;
+      accountStatus.progressLabel.textContent = progress.label || "";
+    }} else {{
+      accountStatus.progressCount.textContent = "";
+      accountStatus.progressLabel.textContent = "";
+    }}
     accountStatus.close.disabled = state === "running";
     accountStatus.backdrop.hidden = false;
   }}
@@ -520,7 +585,14 @@ def html_page(title, generated_at, sections):
     accountStatus.backdrop.hidden = true;
   }}
 
+  function requireLocalApi() {{
+    if (window.location.protocol === "file:") {{
+      throw new Error("Open Account Summary through http://127.0.0.1:8765/ by running wow_profile.py roster-ui.");
+    }}
+  }}
+
   async function postJson(path, payload) {{
+    requireLocalApi();
     const response = await fetch(path, {{
       method: "POST",
       headers: {{ "Content-Type": "application/json" }},
@@ -529,6 +601,89 @@ def html_page(title, generated_at, sections):
     const text = await response.text();
     if (!response.ok) throw new Error(text || `HTTP ${{response.status}}`);
     return text ? JSON.parse(text) : {{}};
+  }}
+
+  async function getJson(path) {{
+    requireLocalApi();
+    const response = await fetch(path);
+    const text = await response.text();
+    if (!response.ok) throw new Error(text || `HTTP ${{response.status}}`);
+    return text ? JSON.parse(text) : {{}};
+  }}
+
+  function recentOutput(status) {{
+    return String(status.output || "").split("\\\\n").slice(-20).join("\\\\n");
+  }}
+
+  function reloadAccountSummary(delayMs = 900) {{
+    window.setTimeout(() => window.location.reload(), delayMs);
+  }}
+
+  async function startSummaryCommand(command) {{
+    const isRefresh = command === "update";
+    const title = isRefresh ? "Updating Profiles" : "Discovering Characters";
+    const startPath = isRefresh ? "/api/update" : "/api/discover";
+    const statusPath = isRefresh ? "/api/update/status" : "/api/discover/status";
+    const button = document.querySelector(`[data-summary-command="${{command}}"]`);
+    if (button) button.disabled = true;
+    showAccountStatus(
+      title,
+      isRefresh
+        ? "Starting profile update for active characters..."
+        : "Starting Battle.net discovery...",
+      "running"
+    );
+    try {{
+      await postJson(startPath, {{}});
+      await pollSummaryCommand(title, statusPath, isRefresh, button);
+    }} catch (error) {{
+      if (button) button.disabled = false;
+      showAccountStatus(title, "Command failed.", "failed", error.message);
+    }}
+  }}
+
+  async function pollSummaryCommand(title, statusPath, isRefresh, button) {{
+    try {{
+      const status = await getJson(statusPath);
+      if (status.running) {{
+        showAccountStatus(
+          title,
+          isRefresh ? "Profile update is running." : "Discovery is running. Complete the Battle.net browser authorization if prompted.",
+          "running",
+          recentOutput(status),
+          status.progress || null
+        );
+        window.setTimeout(() => pollSummaryCommand(title, statusPath, isRefresh, button), 1500);
+        return;
+      }}
+      if (button) button.disabled = false;
+      if (status.returncode === 0) {{
+        showAccountStatus(
+          title,
+          "Refreshing Account Summary...",
+          "running",
+          recentOutput(status)
+        );
+        await postJson("/api/summary/refresh", {{}});
+        showAccountStatus(
+          title,
+          isRefresh ? "Profile update completed." : "Discovery completed.",
+          "success",
+          recentOutput(status)
+        );
+        reloadAccountSummary();
+      }} else if (status.returncode !== null) {{
+        showAccountStatus(
+          title,
+          isRefresh ? "Profile update failed." : "Discovery failed.",
+          "failed",
+          recentOutput(status)
+        );
+      }}
+    }} catch (error) {{
+      if (button) button.disabled = false;
+      showAccountStatus(title, "Could not read command status.", "failed", error.message);
+    }}
   }}
 
   function compareText(left, right) {{
@@ -568,16 +723,19 @@ def html_page(title, generated_at, sections):
   function filterEnabledCharacters() {{
     const input = document.getElementById("enabled-character-filter");
     const realmSelect = document.getElementById("enabled-realm-filter");
+    const factionSelect = document.getElementById("enabled-faction-filter");
     const classSelect = document.getElementById("enabled-class-filter");
     const query = input ? input.value.trim().toLowerCase() : "";
     const realm = realmSelect ? realmSelect.value : "";
+    const faction = factionSelect ? factionSelect.value : "";
     const className = classSelect ? classSelect.value : "";
     for (const row of accountRows()) {{
       const detail = detailRowFor(row);
       const matchesQuery = !query || (row.dataset.search || "").includes(query);
       const matchesRealm = !realm || row.dataset.realm === realm;
+      const matchesFaction = !faction || row.dataset.faction === faction;
       const matchesClass = !className || row.dataset.class === className;
-      const matches = matchesQuery && matchesRealm && matchesClass;
+      const matches = matchesQuery && matchesRealm && matchesFaction && matchesClass;
       row.hidden = !matches;
       if (!matches && detail) detail.hidden = true;
     }}
@@ -623,6 +781,8 @@ def html_page(title, generated_at, sections):
   if (enabledFilter) enabledFilter.addEventListener("input", filterEnabledCharacters);
   const enabledRealmFilter = document.getElementById("enabled-realm-filter");
   if (enabledRealmFilter) enabledRealmFilter.addEventListener("change", filterEnabledCharacters);
+  const enabledFactionFilter = document.getElementById("enabled-faction-filter");
+  if (enabledFactionFilter) enabledFactionFilter.addEventListener("change", filterEnabledCharacters);
   const enabledClassFilter = document.getElementById("enabled-class-filter");
   if (enabledClassFilter) enabledClassFilter.addEventListener("change", filterEnabledCharacters);
   for (const button of document.querySelectorAll("[data-enabled-sort]")) {{
@@ -658,7 +818,7 @@ def html_page(title, generated_at, sections):
           );
           showAccountStatus("Character Inactive", `${{character}} is inactive.`, "success");
         }}
-        window.location.reload();
+        reloadAccountSummary();
       }} catch (error) {{
         checkbox.checked = previous;
         checkbox.disabled = false;
@@ -673,6 +833,9 @@ def html_page(title, generated_at, sections):
         );
       }}
     }});
+  }}
+  for (const button of document.querySelectorAll("[data-summary-command]")) {{
+    button.addEventListener("click", () => startSummaryCommand(button.dataset.summaryCommand));
   }}
   if (accountStatus.close) accountStatus.close.addEventListener("click", closeAccountStatus);
   formatLocalTimes();
@@ -832,6 +995,11 @@ def enabled_characters_table(documents):
         for document in sorted_documents
         if (((document.get("sections") or {}).get("profile") or {}).get("character_class") or {}).get("name")
     })
+    factions = sorted({
+        (((document.get("sections") or {}).get("profile") or {}).get("faction") or {}).get("name") or ""
+        for document in sorted_documents
+        if (((document.get("sections") or {}).get("profile") or {}).get("faction") or {}).get("name")
+    })
     body = []
     for index, document in enumerate(sorted_documents):
         character = document.get("character") or {}
@@ -841,11 +1009,13 @@ def enabled_characters_table(documents):
         detail_id = f"local-specs-{index}"
         character_name = character.get("name") or ""
         realm_name = character.get("realm") or ""
+        faction_name = (profile.get("faction") or {}).get("name") or ""
         class_name = (profile.get("character_class") or {}).get("name") or ""
         active_spec = (profile.get("active_spec") or {}).get("name") or ""
         search_text = " ".join([
             character_name,
             realm_name,
+            faction_name,
             class_name,
             active_spec,
             professions,
@@ -854,6 +1024,7 @@ def enabled_characters_table(documents):
             f'<tr class="expandable-row" data-detail-target="{detail_id}" '
             f'data-name="{html_cell(character_name)}" '
             f'data-realm="{html_cell(realm_name)}" '
+            f'data-faction="{html_cell(faction_name)}" '
             f'data-level="{html_cell(profile.get("level"))}" '
             f'data-class="{html_cell(class_name)}" '
             f'data-spec="{html_cell(active_spec)}" '
@@ -862,6 +1033,7 @@ def enabled_characters_table(documents):
             '<td class="toggle-cell"><button class="toggle-button" type="button">+</button></td>'
             + html_tag("td", character_name)
             + html_tag("td", realm_name)
+            + html_tag("td", faction_name)
             + html_tag("td", profile.get("level"))
             + html_tag("td", class_name)
             + html_tag("td", active_spec)
@@ -872,7 +1044,7 @@ def enabled_characters_table(documents):
         )
         body.append(
             f'<tr id="{detail_id}" class="detail-row" hidden>'
-            '<td class="detail-cell" colspan="9">'
+            '<td class="detail-cell" colspan="10">'
             '<div class="detail-title">Spec Details</div>'
             + local_spec_details_html(document)
             + '<div class="detail-title detail-title-spaced">Equipment Sets</div>'
@@ -891,6 +1063,12 @@ def enabled_characters_table(documents):
             for realm in realms
         )
         + "</select>"
+        '<select id="enabled-faction-filter"><option value="">All factions</option>'
+        + "".join(
+            f'<option value="{html_cell(faction)}">{html_cell(faction)}</option>'
+            for faction in factions
+        )
+        + "</select>"
         '<select id="enabled-class-filter"><option value="">All classes</option>'
         + "".join(
             f'<option value="{html_cell(class_name)}">{html_cell(class_name)}</option>'
@@ -902,6 +1080,7 @@ def enabled_characters_table(documents):
         + html_tag("th", "")
         + '<th class="sortable"><button type="button" data-enabled-sort="name">Character</button></th>'
         + '<th class="sortable"><button type="button" data-enabled-sort="realm">Realm</button></th>'
+        + '<th class="sortable"><button type="button" data-enabled-sort="faction">Faction</button></th>'
         + '<th class="sortable"><button type="button" data-enabled-sort="level">Level</button></th>'
         + '<th class="sortable"><button type="button" data-enabled-sort="class">Class</button></th>'
         + '<th class="sortable"><button type="button" data-enabled-sort="spec">Active Spec</button></th>'
@@ -1200,6 +1379,38 @@ def roster_by_realm_table(characters):
     )
 
 
+def roster_by_realm_sections(grouped):
+    body = []
+    for index, realm in enumerate(sorted(grouped)):
+        characters = grouped[realm]
+        detail_id = f"roster-realm-{index}"
+        active_count = sum(1 for character in characters if character.get("enabled"))
+        body.append(
+            f'<tr class="expandable-row" data-detail-target="{detail_id}">'
+            '<td class="toggle-cell"><button class="toggle-button" type="button">+</button></td>'
+            + html_tag("td", realm)
+            + html_tag("td", len(characters))
+            + html_tag("td", active_count)
+            + "</tr>"
+        )
+        body.append(
+            f'<tr id="{detail_id}" class="detail-row" hidden>'
+            '<td class="detail-cell" colspan="4">'
+            + roster_by_realm_table(characters)
+            + "</td></tr>"
+        )
+    return (
+        '<div class="table-wrap"><table><thead><tr>'
+        + html_tag("th", "")
+        + html_tag("th", "Realm")
+        + html_tag("th", "Characters")
+        + html_tag("th", "Active")
+        + "</tr></thead><tbody>"
+        + "".join(body)
+        + "</tbody></table></div>"
+    )
+
+
 def write_account_summary_markdown(path, generated_at, roster, index, character_documents):
     roster_characters = [
         character
@@ -1243,7 +1454,12 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
             sections.append("<h2>Recent Inactive Changes</h2>")
             sections.append(deactivated_characters_table(index.get("deactivated_characters")))
 
-    sections.append("<h2>Active Characters</h2>")
+    sections.append(section_heading(
+        "Active Characters",
+        action_label="Refresh",
+        action_command="update",
+        primary=True,
+    ))
     sections.append(enabled_characters_table(active_documents))
 
     class_counts = {}
@@ -1267,10 +1483,12 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     for character in roster_characters:
         realm = character.get("realm") or "Unknown Realm"
         grouped.setdefault(realm, []).append(character)
-    sections.append("<h2>Roster By Realm</h2>")
-    for realm in sorted(grouped):
-        sections.append(f"<h2>{html_cell(realm)}</h2>")
-        sections.append(roster_by_realm_table(grouped[realm]))
+    sections.append(section_heading(
+        "Roster By Realm",
+        action_label="Discover",
+        action_command="discover",
+    ))
+    sections.append(roster_by_realm_sections(grouped))
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

@@ -1162,6 +1162,14 @@ class RosterUIHandler(BaseHTTPRequestHandler):
             self.server.on_roster_change()
             self.send_json(data)
             return
+        if parsed.path == "/api/summary/refresh":
+            try:
+                self.server.on_roster_change()
+            except Exception as exc:
+                self.send_text(str(exc), "text/plain; charset=utf-8", status=500)
+                return
+            self.send_json({"status": "refreshed"})
+            return
         if parsed.path == "/api/discover":
             started = self.server.discover_state.start()
             payload = self.server.discover_state.snapshot()
@@ -1211,7 +1219,7 @@ def run_roster_ui(host=DEFAULT_HOST, port=DEFAULT_PORT, path=CHARACTERS_FILE, on
     started = start_initial_update(server)
     url = f"http://{host}:{port}/"
     threading.Timer(0.25, lambda: webbrowser.open(url)).start()
-    print(f"Roster UI running at {url}")
+    print(f"Account Summary running at {url}")
     if started:
         print("Started profile refresh.")
     print("Press Ctrl+C to stop.")

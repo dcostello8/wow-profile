@@ -1,6 +1,9 @@
 import tempfile
+import threading
 import unittest
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.request import Request, urlopen
 from unittest.mock import patch
 
 import yaml
@@ -8,6 +11,7 @@ import yaml
 from src.roster_ui import (
     DiscoverState,
     HTML,
+    RosterUIHandler,
     UpdateState,
     activate_character_with_profile_update,
     roster_payload,
@@ -204,6 +208,32 @@ class RosterUITests(unittest.TestCase):
 
         self.assertTrue(start_initial_update(server))
         self.assertTrue(server.update_state.started)
+
+    def test_summary_refresh_endpoint_runs_roster_change_hook(self):
+        calls = []
+        server = ThreadingHTTPServer(("127.0.0.1", 0), RosterUIHandler)
+        server.roster_path = Path("characters.yaml")
+        server.discover_state = DiscoverState()
+        server.update_state = UpdateState()
+        server.on_roster_change = lambda: calls.append("refresh")
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            request = Request(
+                f"http://127.0.0.1:{server.server_address[1]}/api/summary/refresh",
+                data=b"{}",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with urlopen(request, timeout=5) as response:
+                body = response.read().decode("utf-8")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+
+        self.assertEqual(calls, ["refresh"])
+        self.assertIn('"status": "refreshed"', body)
 
 
 if __name__ == "__main__":
