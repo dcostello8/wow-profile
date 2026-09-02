@@ -251,8 +251,9 @@ Served as `/` by `roster-ui` and generated at `output/account_summary.html`.
 
 Current behavior:
 
-- Shows top-level roster/update stats.
-- Last Update is a quiet metadata line and is formatted in the browser's local timezone.
+- Shows a low-prominence top stat row with only Characters Discovered, Active, and Realms.
+- Does not render header navigation buttons; Account Summary is the primary page.
+- Timestamps are formatted in the browser as `YYYY-MM-DD hh:mm:ss AM/PM TZ`, using the local timezone name.
 - `Active Characters` only includes characters currently active in `characters.yaml`.
 - Active character rows include Faction.
 - Active character rows can be filtered by text, realm, faction, and class.

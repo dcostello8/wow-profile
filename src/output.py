@@ -116,6 +116,8 @@ def section_heading(title, action_label=None, action_command=None, primary=False
 
 
 def local_time(value):
+    if not value:
+        return ""
     return (
         f'<time class="local-time" datetime="{html_cell(value)}" data-local-time>'
         f'{html_cell(value)}</time>'
@@ -183,25 +185,25 @@ def html_page(title, generated_at, sections):
     }}
     .stats {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-      gap: 10px;
-      margin: 16px 0 10px;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 14px 0 8px;
     }}
     .stat {{
       background: var(--panel);
       border: 1px solid var(--line);
       border-radius: 8px;
-      padding: 12px 14px;
+      padding: 8px 10px;
     }}
     .stat-label {{
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       text-transform: uppercase;
       letter-spacing: .04em;
     }}
     .stat-value {{
-      margin-top: 4px;
-      font-size: 20px;
+      margin-top: 2px;
+      font-size: 16px;
       font-weight: 700;
     }}
     .table-wrap {{
@@ -434,23 +436,6 @@ def html_page(title, generated_at, sections):
     .status-updated {{ color: var(--good); font-weight: 650; }}
     .status-partial {{ color: var(--warn); font-weight: 650; }}
     .status-failed {{ color: var(--bad); font-weight: 650; }}
-    .nav {{
-      display: flex;
-      gap: 8px;
-      margin-top: 14px;
-    }}
-    .nav a {{
-      display: inline-flex;
-      align-items: center;
-      min-height: 34px;
-      padding: 0 12px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }}
     .section-heading {{
       display: flex;
       align-items: center;
@@ -521,10 +506,7 @@ def html_page(title, generated_at, sections):
   <main>
     <header>
       <h1>{html_cell(title)}</h1>
-      <div class="generated">Generated: {html_cell(generated_at)}</div>
-      <nav class="nav">
-        <a href="/">Account Summary</a>
-      </nav>
+      <div class="generated">Generated: {local_time(generated_at)}</div>
     </header>
     {body}
   </main>
@@ -691,15 +673,33 @@ def html_page(title, generated_at, sections):
   }}
 
   function formatLocalTimes() {{
+    const pad = value => String(value).padStart(2, "0");
     for (const element of document.querySelectorAll("[data-local-time]")) {{
       const value = element.getAttribute("datetime") || element.textContent;
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) continue;
-      element.textContent = new Intl.DateTimeFormat(undefined, {{
-        dateStyle: "medium",
-        timeStyle: "short",
-        timeZoneName: "short"
-      }}).format(date);
+      const timeZoneName = new Intl.DateTimeFormat(undefined, {{ timeZoneName: "short" }})
+        .formatToParts(date)
+        .find(part => part.type === "timeZoneName")?.value || "";
+      const hours = date.getHours();
+      const displayHours = hours % 12 || 12;
+      const period = hours < 12 ? "AM" : "PM";
+      element.textContent = [
+        date.getFullYear(),
+        "-",
+        pad(date.getMonth() + 1),
+        "-",
+        pad(date.getDate()),
+        " ",
+        pad(displayHours),
+        ":",
+        pad(date.getMinutes()),
+        ":",
+        pad(date.getSeconds()),
+        " ",
+        period,
+        timeZoneName ? ` ${{timeZoneName}}` : ""
+      ].join("");
       element.title = value;
     }}
   }}
@@ -963,7 +963,7 @@ def local_spec_details_html(document):
             "<tr>"
             + html_tag("td", row.get("spec_name"))
             + html_tag("td", row.get("item_level_text"))
-            + html_tag("td", row.get("captured_at"))
+            + f"<td>{local_time(row.get('captured_at'))}</td>"
             + "</tr>"
         )
     return (
@@ -1419,7 +1419,6 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     ]
     active_documents = active_character_documents(roster_characters, character_documents)
     enabled_count = sum(1 for character in roster_characters if character.get("enabled"))
-    stale_count = sum(1 for character in roster_characters if character.get("stale"))
     realms = sorted({
         character.get("realm") or "Unknown Realm"
         for character in roster_characters
@@ -1430,20 +1429,10 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         + stat_card("Characters Discovered", len(roster_characters))
         + stat_card("Active", enabled_count)
         + stat_card("Realms", len(realms))
-        + stat_card("Stale Entries", stale_count)
-        + stat_card("Detailed Profiles", len(active_documents))
         + "</section>"
     ]
 
     if index:
-        sections.append(
-            '<section class="stats">'
-            + stat_card("Updated", index.get("updated_count", 0))
-            + stat_card("Partial", index.get("partial_count", 0))
-            + stat_card("Failed", index.get("failed_count", 0))
-            + stat_card("Set Inactive", index.get("deactivated_count", 0))
-            + "</section>"
-        )
         if index.get("generated_at"):
             sections.append(
                 '<div class="metadata">Last Update: '

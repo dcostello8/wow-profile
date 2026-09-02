@@ -106,8 +106,8 @@ Converted generated report files from Markdown to self-contained HTML while keep
 
 Implemented Account Summary features:
 
-- Top-level stats.
-- Quiet local-time Last Update metadata.
+- Low-prominence top stat row with only Characters Discovered, Active, and Realms.
+- Quiet local-time timestamp metadata formatted as `YYYY-MM-DD hh:mm:ss AM/PM TZ`.
 - `Active Characters` table.
 - Refresh button next to the `Active Characters` title, using the local command/status endpoints from the Account Summary page.
 - Faction column in Active Characters.
@@ -172,7 +172,7 @@ UI capabilities:
 - Account Summary switch activation uses a status window while the single-character profile update runs.
 - Account Summary Refresh and Discover buttons open modal status windows immediately, poll command progress/output, refresh the generated summary, and delay reload briefly after success so the modal state is visible.
 - Account Summary now shows a clear local-API message if opened directly from `output/account_summary.html` instead of through `wow_profile.py roster-ui`.
-- Account Summary no longer links users to the legacy `/roster-ui` page.
+- Account Summary no longer renders header navigation buttons, including the redundant Account Summary self-link and the legacy `/roster-ui` link.
 
 Startup behavior:
 
