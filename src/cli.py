@@ -58,9 +58,16 @@ def discover():
     roster = merge_roster(config, account_profile)
     save_roster(roster)
 
-    total = len(roster["characters"])
-    enabled = sum(1 for character in roster["characters"] if character.get("enabled"))
-    print(f"Wrote {total} characters to {CHARACTERS_FILE}.")
+    total = sum(1 for character in roster["characters"] if not character.get("stale"))
+    stale = sum(1 for character in roster["characters"] if character.get("stale"))
+    enabled = sum(
+        1
+        for character in roster["characters"]
+        if character.get("enabled") and not character.get("stale")
+    )
+    print(f"Wrote {total} current characters to {CHARACTERS_FILE}.")
+    if stale:
+        print(f"Preserved {stale} stale characters as inactive historical entries.")
     print(f"Active characters preserved: {enabled}. Newly discovered characters default to inactive.")
 
 
@@ -390,6 +397,11 @@ def import_latest_local_data():
 
 
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        argv = ["roster-ui"]
+
     parser = argparse.ArgumentParser(
         description="Discover and update World of Warcraft character data."
     )

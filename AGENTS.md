@@ -8,7 +8,7 @@ Project root on the developer machine:
 
 `C:\github\wow-profile`
 
-The durable source of truth for character selection is `characters.yaml`. The UI labels this selection as `Active`/`Inactive`, but the YAML field remains `enabled: true|false` for compatibility with existing code and data.
+The durable runtime source of truth for character selection is local `characters.yaml`. The repository tracks `characters.example.yaml` as a sanitized template, while `characters.yaml` is ignored because it contains machine/account-specific roster state. The UI labels this selection as `Active`/`Inactive`, but the YAML field remains `enabled: true|false` for compatibility with existing code and data.
 
 ## Primary Commands
 
@@ -31,6 +31,10 @@ stop-roster-ui.bat
 ```
 
 `roster-ui` imports the latest detected Retail `WowProfileCollector.lua`, refreshes local summaries, starts the local server, and immediately starts the same profile update that the Refresh button uses.
+
+The Account Summary Refresh action also imports the latest detected Retail `WowProfileCollector.lua` immediately before updating active characters, so captures written when WoW exits are reflected without restarting the UI.
+
+Each active character row includes an actions menu with a single-character Refresh action. It imports the latest local capture, fetches that character's configured profile sections, and refreshes the summary without updating other characters.
 
 ## Command Behavior
 
@@ -151,13 +155,14 @@ Rules:
 .venv/
 __pycache__/
 output/
+characters.yaml
 ```
 
 If token persistence is later added, its storage file must also be ignored by Git.
 
 ## Character Configuration
 
-`characters.yaml` is user-editable configuration and is the source of truth for active/inactive state.
+`characters.yaml` is user-editable runtime configuration and is the source of truth for active/inactive state. It is intentionally ignored by Git. Keep `characters.example.yaml` tracked as the source-control template.
 
 Representative structure:
 
@@ -244,7 +249,7 @@ Keep responsibilities separated:
 - `src/oauth.py`: OAuth URL construction, browser launch, localhost callback, token exchange.
 - `src/blizzard/`: reusable Battle.net API client, profile services, game-data services, namespace handling, and JSON reference cache helpers.
 - `src/blizzard_api.py`: backward-compatible facade over `src/blizzard/` for per-section status/error capture.
-- `src/local_wow.py`: SavedVariables parser and local addon data import.
+- `src/local_wow.py`: SavedVariables parser, schema validation, client-configuration normalization, and local addon data import.
 - `src/output.py`: JSON and HTML report rendering.
 - `src/roster_ui.py`: local HTTP server, roster editor UI, command status/progress endpoints.
 
@@ -262,6 +267,7 @@ Current Account Summary expectations:
 - Inactive characters may still appear in `Roster By Realm`.
 - Last Update is displayed as quiet metadata and formatted by the browser in the user's local timezone.
 - Character rows expand to show Spec Details, Equipment Sets, and collapsible Expansion Skill Levels.
+- Each active character row has an actions menu with single-character Refresh and Equipment Sets options; Equipment Sets opens in a modal popup.
 - Expansion skill levels should be sorted newest to oldest, with Midnight before Khaz Algar and Classic last.
 
 ## Error Handling
@@ -341,6 +347,16 @@ Important areas to keep covered:
 - Report rendering and active/inactive filtering.
 - Roster UI command/progress state.
 - Public profile 403/404 deactivation logic.
+
+### Local Client Configuration
+
+`WowProfileCollector` SavedVariables are schema-versioned. The importer currently accepts schema versions 1 and 2; unsupported versions must fail with an actionable `LuaParseError` rather than being silently interpreted.
+
+Schema version 2 captures explicit per-spec `macros` in addition to click bindings, key bindings, and action bars. Python normalization preserves the existing fields and adds structured modifier flags, display-ready bindings, normalized action records, and a `client_configuration` view. Do not make report code parse Lua structures directly.
+
+The addon currently captures action resolution and macro metadata. Profession specialization allocations, functional ability roles, audits, and configuration history are not yet implemented. Keep these as later phases and do not infer unavailable Blizzard or WoW data.
+
+`src/config_analysis.py` consumes normalized local configuration only. It provides presentation rows and cross-spec comparison by Blizzard spell ID, including `exact_match`, `changed`, and `missing` statuses. Keep comparison and presentation logic in Python rather than embedding it in the addon.
 
 ## Git Practices
 

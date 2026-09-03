@@ -8,6 +8,8 @@ from src.local_wow import (
     character_match_key,
     import_saved_variables,
     merge_local_character_data,
+    normalize_action,
+    normalize_click_binding,
     normalize_key_binding,
     normalized_characters,
     parse_saved_variables,
@@ -25,6 +27,17 @@ class LocalWowTests(unittest.TestCase):
         self.assertIn("Windrunner", data["characters"])
         self.assertIn("Jaedon", data["characters"]["Windrunner"])
 
+    def test_parse_saved_variables_rejects_unsupported_schema(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "WowProfileCollector.lua"
+            path.write_text(
+                "WowProfileCollectorDB = { schema_version = 99, characters = {} }",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(Exception, "Unsupported .*schema version"):
+                parse_saved_variables(path)
+
     def test_normalized_characters_preserve_specs_separately(self):
         data = parse_saved_variables(FIXTURE)
         data["characters"]["Windrunner"]["Jaedon"]["0"] = {"spec_name": None}
@@ -39,6 +52,7 @@ class LocalWowTests(unittest.TestCase):
         self.assertEqual(specs["262"]["spec_name"], "Elemental")
         self.assertEqual(specs["262"]["item_level"]["equipped"], 681.25)
         self.assertEqual(specs["264"]["spec_name"], "Restoration")
+        self.assertEqual(specs["262"]["client_configuration"]["action_bars"][0]["type"], "spell")
 
     def test_click_binding_normalization(self):
         data = parse_saved_variables(FIXTURE)
@@ -69,6 +83,29 @@ class LocalWowTests(unittest.TestCase):
         self.assertEqual(binding["action_bar_slot"], 4)
         self.assertEqual(binding["action_type"], "spell")
         self.assertEqual(binding["spell_name"], "Healing Surge")
+        self.assertEqual(binding["display_keys"], ["ALT-5"])
+
+    def test_click_binding_normalization_has_structured_modifiers_and_display(self):
+        binding = normalize_click_binding({
+            "type": "spell",
+            "spell": {"id": 8004, "name": "Healing Surge"},
+            "button": "LeftButton",
+            "modifiers": ["SHIFT"],
+        })
+
+        self.assertEqual(binding["modifier_flags"], {"shift": True, "ctrl": False, "alt": False})
+        self.assertEqual(binding["display_binding"], "Shift + LeftButton")
+
+    def test_action_normalization_preserves_macro_resolution(self):
+        action = normalize_action({
+            "slot": 4,
+            "type": "macro",
+            "id": 17,
+            "macro": {"id": 17, "name": "Mouseover Heal", "body": "/cast Healing Surge"},
+        })
+
+        self.assertEqual(action["type"], "macro")
+        self.assertEqual(action["macro"]["body"], "/cast Healing Surge")
 
     def test_character_matching_is_name_and_realm_case_insensitive(self):
         self.assertEqual(
@@ -86,6 +123,8 @@ class LocalWowTests(unittest.TestCase):
         self.assertEqual(len(merged["local_client_data"]["equipment_sets"]), 2)
         self.assertIn("262", merged["local_client_data"]["specs"])
         self.assertIn("264", merged["local_client_data"]["specs"])
+        self.assertIn("configuration_comparison", merged["local_client_data"])
+        self.assertIn("configuration_presentation", merged["local_client_data"]["specs"]["262"])
 
     def test_import_handles_missing_output_for_matched_character(self):
         with tempfile.TemporaryDirectory() as temp_dir:

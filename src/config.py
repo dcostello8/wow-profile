@@ -199,6 +199,7 @@ def merge_roster(app_config, account_profile, path=CHARACTERS_FILE):
         else:
             stale_character = dict(existing_by_key[key])
             stale_character["stale"] = True
+            stale_character["enabled"] = False
             merged.append(order_character_fields(stale_character))
         seen.add(key)
 
@@ -224,7 +225,7 @@ def enabled_characters(characters):
     return [
         character
         for character in characters
-        if character.get("enabled") is True
+        if character.get("enabled") is True and not character.get("stale")
     ]
 
 

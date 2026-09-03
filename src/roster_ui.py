@@ -1,8 +1,10 @@
 import json
+import os
 import re
 import subprocess
 import sys
 import threading
+import time
 import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,6 +25,7 @@ from .config import (
     selected_update_sections,
     update_settings_for_character,
 )
+from .local_wow import import_saved_variables
 from .oauth import get_client_credentials_token
 from .output import (
     ROSTER_INDEX_FILE,
@@ -79,6 +82,37 @@ def load_json_file(path):
         return None
     with path.open("r", encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def find_latest_saved_variables():
+    program_files_x86 = os.environ.get("ProgramFiles(x86)")
+    if not program_files_x86:
+        return None
+
+    root = Path(program_files_x86) / "World of Warcraft" / "_retail_" / "WTF" / "Account"
+    if not root.exists():
+        return None
+    candidates = list(root.rglob("WowProfileCollector.lua"))
+    return max(candidates, key=lambda path: path.stat().st_mtime) if candidates else None
+
+
+def import_latest_local_data_before_update(state):
+    saved_variables = find_latest_saved_variables()
+    if not saved_variables:
+        state.append_output("No WowProfileCollector SavedVariables found; skipping local import.")
+        return
+
+    result = import_saved_variables(saved_variables)
+    state.append_output(f"Imported latest local WoW data from {saved_variables}.")
+    state.append_output(f"Matched {result.matched} characters before profile refresh.")
+    if result.missing_output:
+        state.append_output(
+            f"Skipped {result.missing_output} matched characters without generated JSON."
+        )
+    if result.unmatched:
+        state.append_output(
+            f"SavedVariables contained {result.unmatched} characters not found in characters.yaml."
+        )
 
 
 def find_roster_character(roster, identity):
@@ -966,8 +1000,9 @@ HTML = r"""<!doctype html>
 
 
 class CommandState:
-    def __init__(self, args):
+    def __init__(self, args, before_run=None):
         self.args = args
+        self.before_run = before_run
         self.lock = threading.Lock()
         self.running = False
         self.returncode = None
@@ -991,8 +1026,13 @@ class CommandState:
 
     def _run(self):
         try:
+            if self.before_run:
+                self.before_run(self)
+            command = [sys.executable, *self.args]
+            if not getattr(sys, "frozen", False):
+                command.insert(1, "wow_profile.py")
             process = subprocess.Popen(
-                [sys.executable, "wow_profile.py", *self.args],
+                command,
                 cwd=Path.cwd(),
                 text=True,
                 stdout=subprocess.PIPE,
@@ -1057,8 +1097,8 @@ class UpdateState(CommandState):
         r"^Set (.+) inactive because its public profile is unavailable\.$"
     )
 
-    def __init__(self):
-        super().__init__(["update"])
+    def __init__(self, before_run=None):
+        super().__init__(["update"], before_run=before_run)
 
     def parse_progress(self, line):
         match = self.PROGRESS_PATTERN.match(line)
@@ -1079,9 +1119,90 @@ class UpdateState(CommandState):
             return None
         return match.group(1)
 
+class CharacterRefreshState:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.running = False
+        self.returncode = None
+        self.output = ""
 
-def start_initial_update(server):
-    return server.update_state.start()
+    def start(self, identity, path=CHARACTERS_FILE):
+        with self.lock:
+            if self.running:
+                return False
+            self.running = True
+            self.returncode = None
+            self.output = ""
+        thread = threading.Thread(target=self._run, args=(identity, path), daemon=True)
+        thread.start()
+        return True
+
+    def _run(self, identity, path):
+        try:
+            import_latest_local_data_before_update(self)
+            character = find_roster_character(load_existing_roster(path), identity)
+            if not character.get("enabled"):
+                raise RuntimeError("Character must be active before it can be refreshed.")
+            result = activate_character_with_profile_update(identity, path)
+            self.append_output(result.get("message", "Character refresh completed."))
+            with self.lock:
+                self.returncode = 0
+        except Exception as exc:
+            with self.lock:
+                self.returncode = 1
+            self.append_output(str(exc))
+        finally:
+            with self.lock:
+                self.running = False
+
+    def append_output(self, line):
+        with self.lock:
+            self.output = f"{self.output}\n{line}".strip()
+
+    def snapshot(self):
+        with self.lock:
+            return {
+                "running": self.running,
+                "returncode": self.returncode,
+                "output": self.output,
+            }
+
+
+def wait_for_command(state, interval=0.1):
+    while state.snapshot()["running"]:
+        time.sleep(interval)
+
+
+def run_initial_discover_then_update(server, open_url=None, wait_interval=0.1):
+    discover_started = server.discover_state.start()
+    if discover_started:
+        wait_for_command(server.discover_state, wait_interval)
+        if server.discover_state.snapshot()["returncode"] == 0:
+            server.on_roster_change()
+
+    if open_url:
+        webbrowser.open(open_url)
+
+    update_started = server.update_state.start()
+    if update_started:
+        wait_for_command(server.update_state, wait_interval)
+        if server.update_state.snapshot()["returncode"] == 0:
+            server.on_roster_change()
+
+    return {
+        "discover_started": discover_started,
+        "update_started": update_started,
+    }
+
+
+def start_initial_update(server, open_url=None):
+    thread = threading.Thread(
+        target=run_initial_discover_then_update,
+        args=(server, open_url),
+        daemon=True,
+    )
+    thread.start()
+    return True
 
 
 class RosterUIHandler(BaseHTTPRequestHandler):
@@ -1110,6 +1231,9 @@ class RosterUIHandler(BaseHTTPRequestHandler):
         if parsed.path == "/api/update/status":
             self.send_json(self.server.update_state.snapshot())
             return
+        if parsed.path == "/api/character-refresh/status":
+          self.send_json(self.server.character_refresh_state.snapshot())
+          return
         self.send_error(404, "Not found")
 
     def do_POST(self):
@@ -1182,6 +1306,20 @@ class RosterUIHandler(BaseHTTPRequestHandler):
             payload["started"] = started
             self.send_json(payload)
             return
+        if parsed.path == "/api/character-refresh":
+          payload = self.read_json()
+          identity = payload.get("identity")
+          if not identity:
+            self.send_error(400, "Missing identity")
+            return
+          started = self.server.character_refresh_state.start(
+            identity,
+            self.server.roster_path,
+          )
+          result = self.server.character_refresh_state.snapshot()
+          result["started"] = started
+          self.send_json(result)
+          return
         self.send_error(404, "Not found")
 
     def read_json(self):
@@ -1214,14 +1352,14 @@ def run_roster_ui(host=DEFAULT_HOST, port=DEFAULT_PORT, path=CHARACTERS_FILE, on
     server = ThreadingHTTPServer((host, port), RosterUIHandler)
     server.roster_path = path
     server.discover_state = DiscoverState()
-    server.update_state = UpdateState()
+    server.update_state = UpdateState(before_run=import_latest_local_data_before_update)
+    server.character_refresh_state = CharacterRefreshState()
     server.on_roster_change = on_roster_change or (lambda: None)
-    started = start_initial_update(server)
     url = f"http://{host}:{port}/"
-    threading.Timer(0.25, lambda: webbrowser.open(url)).start()
+    started = start_initial_update(server, url)
     print(f"Account Summary running at {url}")
     if started:
-        print("Started profile refresh.")
+        print("Started discovery check and profile refresh.")
     print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()

@@ -7,7 +7,7 @@
 - Blizzard Battle.net APIs for account discovery and public character profile data.
 - A local WoW Retail addon, `WowProfileCollector`, for in-game data that Blizzard's public profile API does not expose cleanly.
 
-The project is local-first. `characters.yaml` is human-editable configuration and `output/` contains generated reports/data that are ignored by Git.
+The project is local-first. Runtime `characters.yaml` is human-editable configuration and `output/` contains generated reports/data that are ignored by Git. The repository tracks `characters.example.yaml` as a sanitized starter template.
 
 The UI uses the word `Active` for characters selected for updates. Internally this is stored as `enabled: true` in `characters.yaml`.
 
@@ -123,11 +123,15 @@ C:\Program Files (x86)\World of Warcraft\_retail_\WTF\Account\<account>\SavedVar
 
 `import-local` parses the `WowProfileCollectorDB` Lua table and merges matched character data into generated JSON files. Matching is by character name and realm, case-insensitive.
 
-`roster-ui` startup automatically finds the newest Retail `WowProfileCollector.lua`, imports it, refreshes local summary data, starts the server, and starts a public profile refresh.
+`roster-ui` startup automatically finds the newest Retail `WowProfileCollector.lua`, imports it, refreshes local summary data, starts the server, runs discovery, refreshes the generated Account Summary after successful discovery, opens the Account Summary page, then starts a public profile refresh.
+
+Page-driven Refresh imports the newest detected Retail SavedVariables immediately before starting the active-character update. This keeps local addon changes, including equipment sets, current without requiring a server restart. In a packaged build, background commands relaunch the executable directly rather than passing the Python script path as an argument.
+
+Each Active Characters row also provides an ellipsis menu with a single-character Refresh action. It uses the same section-fetch and local-import behavior as the main refresh while targeting only the selected active character.
 
 ## Character Configuration
 
-`characters.yaml` is the configuration source of truth.
+`characters.yaml` is the local runtime configuration source of truth. It is intentionally ignored by Git; `characters.example.yaml` is the tracked source-control template.
 
 Representative shape:
 
@@ -157,9 +161,12 @@ characters:
 Important rules:
 
 - `enabled: true` means Active in the UI.
+- Start a new local roster by copying `characters.example.yaml` to `characters.yaml`, then run `discover`.
 - Newly discovered characters default to inactive (`enabled: false`).
 - Rediscovery preserves existing active/inactive settings and update overrides.
-- Characters missing from a discovery response are preserved and marked stale.
+- Characters missing from a successful discovery response are preserved, marked `stale: true`, and forced inactive with `enabled: false`.
+- Rediscovered characters return to `stale: false` through the normal merge path.
+- Stale characters are never selected for profile updates, even if edited back to `enabled: true`.
 - Generated Blizzard/profile data must not be written into `characters.yaml`.
 
 ## Generated Data
@@ -255,10 +262,12 @@ Current behavior:
 - Does not render header navigation buttons; Account Summary is the primary page.
 - Timestamps are formatted in the browser as `YYYY-MM-DD hh:mm:ss AM/PM TZ`, using the local timezone name.
 - `Active Characters` only includes characters currently active in `characters.yaml`.
+- Stale characters are excluded from the top Characters Discovered/Realms counts and from `Roster By Realm`.
 - Active character rows include Faction.
 - Active character rows can be filtered by text, realm, faction, and class.
 - Active character rows can be sorted by character, realm, faction, level, class, active spec, and iLevel.
 - Expanding an active character shows Spec Details, Equipment Sets, and Expansion Skill Levels.
+- Each active character row has an ellipsis actions menu. Refresh targets only that character, while Equipment Sets opens the captured set details in a modal popup.
 - Expansion Skill Levels are collapsible by profession.
 - Individual expansion rows are sorted newest to oldest: Midnight first, Classic last.
 - `Active Class Coverage` and `Active Profession Coverage` are based only on active generated character documents.
@@ -316,11 +325,20 @@ It captures:
 - Spec item level from `GetAverageItemLevel()`.
 - Equipment set metadata and per-set iLevel where available.
 
+SavedVariables schema version 2 also records explicit macro metadata for each captured specialization. `src/local_wow.py` accepts schema versions 1 and 2, keeps parsing separate from normalization, and produces normalized action records with structured modifiers and display-ready binding values. Each normalized spec includes a `client_configuration` object containing `click_bindings`, `key_bindings`, `action_bars`, and `macros`, while the established top-level local fields remain for compatibility.
+
+The current character matcher uses case-insensitive name and realm. Blizzard character IDs and realm slugs should be added to local captures or matching metadata before relying on ID-based rename/transfer reconciliation.
+
+Not yet implemented: profession specialization allocations, configurable functional ability roles, binding audits, and configuration fingerprint/history retention. These remain subsequent phases. The application remains local-only; no hosting or publishing path should be added.
+
+Phase 2 now provides `src/config_analysis.py`, which consumes normalized specs and produces display-ready key/click rows. Local imports attach `configuration_presentation` to each spec and add character-level `configuration_comparison` plus `shared_spell_consistency` results. Comparisons use Blizzard spell IDs, preserve key-versus-click source, and distinguish exact matches, changed bindings, and abilities missing from one or more specs. Functional equivalence across different spell IDs is intentionally deferred to the role-classification phase.
+
 The addon avoids storing spec ID `0` captures and has retry logic for cases where WoW has not finished loading valid spec data. Equipment sets are stored at the character level, not under a specific spec, because equipment sets may be unassigned or not tied to a spec.
 
 ## Important Design Decisions
 
 - Keep `characters.yaml` human-editable and generated output separate.
+- Keep account-specific `characters.yaml` ignored and track only the sanitized `characters.example.yaml` template.
 - Use `enabled` internally but display `Active` to the user.
 - Preserve `local_client_data` when public API updates rewrite character JSON.
 - Store equipment sets at the character level because they may not be tied to specs.
@@ -334,8 +352,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last committed baseline observed: `5e4165a Document current workflow and handle inaccessible profiles`.
-- There are uncommitted changes after that commit, including Account Summary active switches, guarded activation behavior, Phase 1 Blizzard API architecture, expanded default profile sections, tests, docs, and a local `characters.yaml` active-state change.
+- Last pushed baseline observed: `cb9cad3 Simplify account summary status area`.
+- There are uncommitted changes after that commit implementing stale-character handling, discover-before-refresh startup sequencing, and the `characters.example.yaml`/ignored runtime `characters.yaml` split.
 
 ## Validation
 
@@ -348,7 +366,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 50 tests
+Ran 54 tests
 OK
 ```
 
@@ -358,4 +376,4 @@ OK
 - Tests do not require live Blizzard credentials.
 - `output/` is ignored and must be regenerated locally.
 - SavedVariables import matches local addon data by character name and realm. Character rename/realm-transfer matching for local addon data is not currently ID-based.
-- `roster-ui` starts a live profile refresh on server startup, which may make startup network-dependent and can modify `characters.yaml` by marking 403/404 profile failures inactive.
+- `roster-ui` starts live discovery and profile refresh work on server startup, which may make startup network-dependent and can modify `characters.yaml` by marking absent characters stale/inactive or by marking 403/404 profile failures inactive.

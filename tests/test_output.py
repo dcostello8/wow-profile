@@ -167,6 +167,9 @@ class OutputTests(unittest.TestCase):
         self.assertIn('data-enabled-sort="name"', html)
         self.assertIn('data-enabled-sort="realm"', html)
         self.assertIn('data-enabled-sort="faction"', html)
+        self.assertIn('data-character-refresh=', html)
+        self.assertIn('data-equipment-target="equipment-sets-0"', html)
+        self.assertIn('>Equipment Sets</button>', html)
         self.assertIn("Restoration", html)
         self.assertIn("282.4 equipped / 286.8 avg", html)
         self.assertIn('datetime="2026-08-31T20:57:23Z" data-local-time', html)
@@ -289,6 +292,19 @@ class OutputTests(unittest.TestCase):
         self.assertIn("<h2>Active Characters</h2>", html)
         self.assertIn('data-summary-command="update"', html)
         self.assertIn('data-summary-command="discover"', html)
+        self.assertIn('id="equipment-modal-backdrop"', html)
+        self.assertIn('id="equipment-modal-body"', html)
+        self.assertIn('openEquipmentModal', html)
+        self.assertIn("width: 180px", html)
+        self.assertIn("display: grid", html)
+        self.assertIn("viewport-positioned", html)
+        self.assertIn("positionRowMenu", html)
+        self.assertIn("function closeRowMenus()", html)
+        self.assertIn('if (!event.target.closest(".row-menu")) closeRowMenus();', html)
+        self.assertIn(".equipment-modal .table-wrap", html)
+        self.assertIn("overflow-x: hidden", html)
+        self.assertIn("table-layout: fixed", html)
+        self.assertIn("otherMenu.open = false", html)
         self.assertIn('"/api/update/status"', html)
         self.assertIn('"/api/discover/status"', html)
         self.assertIn('"/api/summary/refresh"', html)
@@ -422,10 +438,22 @@ class OutputTests(unittest.TestCase):
                             "realm": "Windrunner",
                             "enabled": False,
                         },
+                        {
+                            "key": "us:id:3",
+                            "name": "Staleone",
+                            "realm": "Oldrealm",
+                            "enabled": True,
+                            "stale": True,
+                        },
                     ]
                 },
                 {},
-                [],
+                [
+                    {
+                        "character": {"key": "us:id:3", "name": "Staleone", "realm": "Oldrealm"},
+                        "sections": {"profile": {"character_class": {"name": "Mage"}}},
+                    }
+                ],
             )
             html = path.read_text(encoding="utf-8")
 
@@ -436,8 +464,14 @@ class OutputTests(unittest.TestCase):
         self.assertIn('data-summary-command="discover"', roster_section)
         self.assertIn('data-detail-target="roster-realm-0"', roster_section)
         self.assertIn('<tr id="roster-realm-0" class="detail-row" hidden>', roster_section)
+        self.assertIn('<div class="stat-label">Characters Discovered</div><div class="stat-value">2</div>', html)
+        self.assertIn('<div class="stat-label">Realms</div><div class="stat-value">1</div>', html)
         self.assertIn("<th>Realm</th>", roster_section)
+        self.assertNotIn("<th>Stale</th>", roster_section)
         self.assertIn("<td>Windrunner</td>", roster_section)
+        self.assertNotIn("Oldrealm", roster_section)
+        self.assertNotIn("Staleone", roster_section)
+        self.assertNotIn("Staleone", active_section)
         self.assertIn('class="active-switch"', roster_section)
         self.assertIn('data-roster-active-id="us:id:1"', roster_section)
         self.assertIn('data-character-name="Activeone" checked', roster_section)

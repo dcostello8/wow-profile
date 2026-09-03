@@ -1,0 +1,24 @@
+defaults:
+  update:
+    profile: true
+    equipment: true
+    specializations: true
+    statistics: true
+    professions: true
+    mythic_plus: true
+    media: true
+    reputations: true
+    titles: true
+
+characters:
+  - key: us:id:123456789
+    name: Example
+    enabled: false
+    region: us
+    id: 123456789
+    realm: Example Realm
+    realm_id: 1
+    realm_slug: example-realm
+    stale: false
+    wow_account_id: 123456
+    protected_character_href: https://us.api.blizzard.com/profile/user/wow/protected-character/1-123456789?namespace=profile-us

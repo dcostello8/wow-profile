@@ -1,6 +1,6 @@
 local ADDON_NAME = ...
 local ADDON_VERSION = "0.1.0"
-local SCHEMA_VERSION = 1
+local SCHEMA_VERSION = 2
 local LOGIN_CAPTURE_DELAY_SECONDS = 5
 local SPEC_CAPTURE_DELAY_SECONDS = 2
 local EQUIPMENT_CAPTURE_DELAY_SECONDS = 1
@@ -146,6 +146,23 @@ local function ResolveActionSlot(slot)
     end
 
     return action
+end
+
+local function CaptureMacros()
+    local macros = {}
+    if type(GetNumMacros) ~= "function" or type(GetMacroInfo) ~= "function" then
+        return macros
+    end
+
+    local accountCount, characterCount = GetNumMacros()
+    local total = (tonumber(accountCount) or 0) + (tonumber(characterCount) or 0)
+    for macroID = 1, total do
+        local macro = ResolveMacro(macroID)
+        if macro then
+            table.insert(macros, macro)
+        end
+    end
+    return macros
 end
 
 local function CaptureClickBindings()
@@ -407,6 +424,7 @@ local function CaptureCharacter(reason)
         click_bindings = CaptureClickBindings(),
         key_bindings = CaptureKeyBindings(),
         action_bars = CaptureActionBars(),
+        macros = CaptureMacros(),
     }
 
     lastCaptureKey = captureKey

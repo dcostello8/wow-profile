@@ -13,10 +13,10 @@ main
 Last committed baseline observed at the time of this documentation update:
 
 ```text
-5e4165a Document current workflow and handle inaccessible profiles
+cb9cad3 Simplify account summary status area
 ```
 
-There are uncommitted changes after that commit that are part of the current working state.
+There are uncommitted changes after that commit implementing stale-character behavior and moving account-specific roster state out of source control.
 
 ## Features Implemented
 
@@ -27,6 +27,8 @@ There are uncommitted changes after that commit that are part of the current wor
 - Generated one JSON file per character under `output/characters/`.
 - Generated `output/roster.json`.
 - Preserved existing `local_client_data` across public API updates.
+- Successful discovery now preserves characters absent from Blizzard's roster as stale historical entries, forces them inactive, and excludes stale entries from update selection.
+- Runtime `characters.yaml` is now ignored by Git, with sanitized `characters.example.yaml` tracked as the source-control template.
 - Added per-character update progress output:
 
 ```text
@@ -128,6 +130,7 @@ Implemented Account Summary features:
 - `Roster By Realm`, which now starts as a collapsed realm/server list and shows character Active switches when a realm is expanded.
 - Discover button next to the `Roster By Realm` title, using the local command/status endpoints from the Account Summary page.
 - Account Summary activation now fetches Battle.net character data before writing `enabled: true`; failed profile fetches leave the character inactive and show the error in a status window.
+- Account Summary excludes stale characters from current discovered-character/realm counts and from `Roster By Realm`, while preserving historical generated JSON and local addon data under `output/`.
 
 Bug fixed:
 
@@ -179,7 +182,7 @@ Startup behavior:
 - `wow_profile.py roster-ui` imports the latest Retail `WowProfileCollector.lua` if found.
 - It refreshes local summary data.
 - It starts the server.
-- The server immediately starts the same profile refresh that the Refresh button runs.
+- The server starts a discovery check first, refreshes the generated Account Summary after successful discovery, opens the Account Summary page, then starts the same profile refresh that the Refresh button runs.
 
 Batch helpers added:
 
@@ -205,6 +208,7 @@ Internal config still uses `enabled` to avoid changing the YAML schema.
 - `addon/WowProfileCollector/README.md`
 - `addon/WowProfileCollector/WowProfileCollector.lua`
 - `addon/WowProfileCollector/WowProfileCollector.toc`
+- `characters.example.yaml`
 - `src/local_wow.py`
 - `src/blizzard/__init__.py`
 - `src/blizzard/client.py`
@@ -238,7 +242,7 @@ Internal config still uses `enabled` to avoid changing the YAML schema.
 ## Files Substantially Changed
 
 - `AGENTS.md`: updated durable project instructions to match the current architecture and workflow.
-- `characters.yaml`: active/inactive state changed during roster UI and update testing.
+- `characters.yaml`: no longer tracked; local runtime roster state remains on disk and is ignored.
 - `src/blizzard_api.py`: public profile section status codes are captured.
 - `src/config.py`: default active update sections now include statistics, media, reputations, and titles.
 - `src/cli.py`: update, summary, fullroster, import-local, roster-ui startup workflow, and inactive handling.
@@ -247,7 +251,7 @@ Internal config still uses `enabled` to avoid changing the YAML schema.
 
 ## Important Technical Decisions
 
-- Keep `characters.yaml` as the editable source of truth and keep generated data under ignored `output/`.
+- Keep local `characters.yaml` as the editable runtime source of truth, track only `characters.example.yaml`, and keep generated data under ignored `output/`.
 - Use `enabled` internally for compatibility but display `Active` to the user.
 - Preserve local addon data across public API updates.
 - Store equipment sets at the character level because they may not be tied to specs.
@@ -291,11 +295,14 @@ Test coverage now includes:
 - Startup refresh behavior.
 - Blizzard section `status_code` capture.
 - Public profile unavailable detection and deactivation.
+- Discovery stale-character merge behavior.
+- Update selection excludes stale characters.
+- Account Summary current roster counts and Roster By Realm exclude stale characters.
 
 Most recent validation:
 
 ```text
-Ran 50 tests in 0.593s
+Ran 54 tests in 0.612s
 OK
 ```
 
@@ -324,15 +331,22 @@ main
 Last pushed commit noted at the start of this continuation:
 
 ```text
-568aec4 Add guarded roster activation and Blizzard API services
+cb9cad3 Simplify account summary status area
 ```
 
 Working tree after this continuation has uncommitted changes:
 
 - `docs/DEVELOPMENT_LOG.md`
 - `docs/PROJECT_CONTEXT.md`
+- `AGENTS.md`
+- `.gitignore`
+- `characters.example.yaml`
+- `characters.yaml` removed from Git tracking while preserved locally
+- `src/cli.py`
+- `src/config.py`
 - `src/output.py`
 - `src/roster_ui.py`
+- `tests/test_config.py`
 - `tests/test_output.py`
 - `tests/test_roster_ui.py`
 
@@ -345,7 +359,7 @@ Ignored local files remain:
 
 ## Known Issues And Incomplete Work
 
-- `roster-ui` startup intentionally runs a live profile refresh, which can modify `characters.yaml` by setting public-profile 403/404 characters inactive.
+- `roster-ui` startup intentionally runs live discovery and profile refresh work, which can modify `characters.yaml` by setting absent characters stale/inactive and public-profile 403/404 characters inactive.
 - SavedVariables import matches local addon data by name and realm, not Blizzard character ID.
 - Generated output is ignored by Git and must be regenerated locally.
 - Some character JSON files may exist for inactive characters; active sections must filter them against `characters.yaml`.
@@ -356,3 +370,49 @@ Ignored local files remain:
 Continue moving any remaining useful `/roster-ui` controls into Account Summary, then retire or redirect the legacy roster editor page. Optionally run a live `wow_profile.py update`/`roster-ui` smoke test with local Blizzard credentials, then commit and push if the behavior is accepted.
 
 After that, the next useful product step is to enrich generated character documents with selected cached reference data, starting with item/spell/profession IDs already present in profile and local addon data.
+
+## Phase 1 Client Configuration Continuation
+
+The local client model was extended without changing the existing import shape:
+
+- The addon now writes SavedVariables schema version 2 and captures explicit macro metadata per specialization.
+- The Python importer validates supported schema versions and rejects unsupported versions clearly.
+- Click bindings now include structured modifier flags and display-ready binding text.
+- Key bindings preserve the command-to-action-slot relationship while adding display keys, normalized action records, and macro bodies when available.
+- Action bars and macros are normalized into a specialization-level `client_configuration` view.
+
+Validation completed:
+
+```text
+Ran 11 tests in 0.011s
+OK
+```
+
+Known limitations remain: no live WoW Lua execution test harness, no profession specialization capture, no ID-based local character matching, and no comparison/audit/history layer. The next logical implementation step is Phase 2 presentation and cross-spec comparison, beginning with tests over normalized configuration data.
+
+## Phase 2: Configuration Presentation And Comparison
+
+Implemented `src/config_analysis.py` as a Python-only analysis layer over normalized local configuration:
+
+- Produces presentation-ready key-binding and click-binding rows with action labels and source metadata.
+- Compares specs by Blizzard spell ID rather than display name.
+- Reports `exact_match`, `changed`, and `missing` assignments.
+- Filters shared-spell consistency results to abilities present in more than one spec.
+- Persists per-spec presentation data and character-level comparison results during local SavedVariables import.
+
+Validation completed:
+
+```text
+Ran 15 tests in 0.011s
+OK
+```
+
+Known limitation: equivalent functions with different spell IDs are not compared yet. The next phase should add configurable functional-role classification before cross-character audits.
+
+## Single-Character Refresh
+
+Added an ellipsis actions menu to each Active Characters row. Its Refresh action imports the newest addon SavedVariables, fetches all configured sections for only that active character, writes the character document, refreshes the summary, and reloads the page. The endpoint has independent background status so the existing main refresh workflow remains unchanged.
+
+Validation includes active-only guards, import-before-refresh ordering, menu rendering, and packaged-worker compatibility.
+
+The same active-row menu now includes Equipment Sets. Existing equipment-set details are rendered into a character-specific modal template instead of the expanded row, keeping the row details focused on specs and expansion skills. Rendering tests cover the menu action and modal shell.

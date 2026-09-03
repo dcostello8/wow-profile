@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .config_analysis import compare_specs, presentation_data, shared_spell_consistency
 from .config import load_character_roster
 from .output import character_output_path, write_json
 
 
 SAVED_VARIABLE_NAME = "WowProfileCollectorDB"
+SUPPORTED_SCHEMA_VERSIONS = {1, 2}
 
 
 class LuaParseError(RuntimeError):
@@ -72,7 +74,16 @@ def parse_saved_variables(path: Path):
         raise LuaParseError(f"{path} does not assign {SAVED_VARIABLE_NAME}.")
 
     tokenizer = LuaTokenizer(text[match.end():])
-    return parse_value(tokenizer)
+    saved_variables = parse_value(tokenizer)
+    if not isinstance(saved_variables, dict):
+        raise LuaParseError(f"{SAVED_VARIABLE_NAME} must be a Lua table.")
+    schema_version = saved_variables.get("schema_version")
+    if schema_version is not None and schema_version not in SUPPORTED_SCHEMA_VERSIONS:
+        raise LuaParseError(
+            f"Unsupported {SAVED_VARIABLE_NAME} schema version {schema_version!r}; "
+            f"supported versions are {sorted(SUPPORTED_SCHEMA_VERSIONS)}."
+        )
+    return saved_variables
 
 
 def parse_value(tokenizer: LuaTokenizer):
@@ -156,15 +167,71 @@ def modifier_list(binding):
     return result
 
 
+def modifier_flags(modifiers):
+    names = {str(modifier).upper() for modifier in modifiers}
+    return {
+        "shift": "SHIFT" in names,
+        "ctrl": "CTRL" in names,
+        "alt": "ALT" in names,
+    }
+
+
+def display_binding(key, modifiers=None):
+    modifier_names = [name.title() for name in (modifiers or [])]
+    if not key:
+        return " + ".join(modifier_names)
+    return " + ".join([*modifier_names, str(key)])
+
+
+def normalize_action(action):
+    if not isinstance(action, dict):
+        return None
+
+    spell = action.get("spell") if isinstance(action.get("spell"), dict) else {}
+    item = action.get("item") if isinstance(action.get("item"), dict) else {}
+    macro = action.get("macro") if isinstance(action.get("macro"), dict) else {}
+    normalized = {
+        "slot": action.get("slot"),
+        "type": action.get("type"),
+        "id": action.get("id"),
+        "sub_type": action.get("sub_type"),
+        "text": action.get("text"),
+    }
+    if spell:
+        normalized["spell"] = {
+            "id": spell.get("id"),
+            "name": spell.get("name"),
+            "icon": spell.get("icon"),
+        }
+    if item:
+        normalized["item"] = {
+            "id": item.get("id"),
+            "name": item.get("name"),
+        }
+    if macro:
+        normalized["macro"] = {
+            "id": macro.get("id"),
+            "name": macro.get("name"),
+            "icon": macro.get("icon"),
+            "body": macro.get("body"),
+        }
+    return normalized
+
+
 def normalize_click_binding(binding):
     spell = binding.get("spell") if isinstance(binding.get("spell"), dict) else {}
+    modifiers = modifier_list(binding)
+    button = binding.get("button")
     return {
         "action": binding.get("action") or spell.get("name"),
         "type": binding.get("type"),
+        "action_type": binding.get("type"),
         "spell_id": binding.get("spell_id") or spell.get("id"),
         "spell_name": spell.get("name"),
-        "button": binding.get("button"),
-        "modifiers": modifier_list(binding),
+        "button": button,
+        "modifiers": modifiers,
+        "modifier_flags": modifier_flags(modifiers),
+        "display_binding": display_binding(button, modifiers),
     }
 
 
@@ -174,9 +241,11 @@ def normalize_key_binding(binding):
     item = action.get("item") if isinstance(action.get("item"), dict) else {}
     macro = action.get("macro") if isinstance(action.get("macro"), dict) else {}
     keys = binding.get("keys") or []
+    normalized_action = normalize_action(action)
 
     return {
         "keys": keys,
+        "display_keys": [display_binding(key) for key in keys],
         "command": binding.get("command"),
         "category": binding.get("category"),
         "action_bar_slot": binding.get("action_bar_slot"),
@@ -188,10 +257,53 @@ def normalize_key_binding(binding):
         "item_name": item.get("name"),
         "macro_id": macro.get("id") or (action.get("id") if action.get("type") == "macro" else None),
         "macro_name": macro.get("name"),
+        "macro_body": macro.get("body"),
+        "action": normalized_action,
     }
 
 
+def normalize_macro(macro):
+    if not isinstance(macro, dict):
+        return None
+    return {
+        "id": macro.get("id"),
+        "name": macro.get("name"),
+        "icon": macro.get("icon"),
+        "body": macro.get("body"),
+    }
+
+
+def normalize_action_bar(action):
+    return normalize_action(action)
+
+
 def normalize_spec_capture(capture):
+    click_bindings = [
+        normalize_click_binding(binding)
+        for binding in capture.get("click_bindings", [])
+        if isinstance(binding, dict)
+    ]
+    key_bindings = [
+        normalize_key_binding(binding)
+        for binding in capture.get("key_bindings", [])
+        if isinstance(binding, dict)
+    ]
+    action_bars = [
+        normalize_action_bar(action)
+        for action in capture.get("action_bars", [])
+        if isinstance(action, dict)
+    ]
+    macros = [
+        normalize_macro(macro)
+        for macro in capture.get("macros", [])
+        if isinstance(macro, dict)
+    ]
+    configuration = {
+        "click_bindings": click_bindings,
+        "key_bindings": key_bindings,
+        "action_bars": action_bars,
+        "macros": macros,
+    }
     return {
         "captured_at": capture.get("captured_at"),
         "character": capture.get("character"),
@@ -201,17 +313,11 @@ def normalize_spec_capture(capture):
         "spec_id": capture.get("spec_id"),
         "spec_name": capture.get("spec_name"),
         "item_level": capture.get("item_level"),
-        "click_bindings": [
-            normalize_click_binding(binding)
-            for binding in capture.get("click_bindings", [])
-            if isinstance(binding, dict)
-        ],
-        "key_bindings": [
-            normalize_key_binding(binding)
-            for binding in capture.get("key_bindings", [])
-            if isinstance(binding, dict)
-        ],
-        "action_bars": capture.get("action_bars", []),
+        "click_bindings": click_bindings,
+        "key_bindings": key_bindings,
+        "action_bars": action_bars,
+        "macros": macros,
+        "client_configuration": configuration,
     }
 
 
@@ -248,6 +354,9 @@ def merge_local_character_data(document, local_character, imported_at):
     existing_specs = client_data.get("specs") or {}
     merged_specs = dict(existing_specs)
     merged_specs.update(local_character.get("specs") or {})
+    for spec in merged_specs.values():
+        if isinstance(spec, dict):
+            spec["configuration_presentation"] = presentation_data(spec)
 
     document["local_client_data"] = {
         "source": "WowProfileCollector SavedVariables",
@@ -257,6 +366,8 @@ def merge_local_character_data(document, local_character, imported_at):
             "realm": local_character.get("realm"),
         },
         "specs": merged_specs,
+        "configuration_comparison": compare_specs(merged_specs),
+        "shared_spell_consistency": shared_spell_consistency(merged_specs),
         "equipment_sets": local_character.get("equipment_sets") or [],
     }
     return document

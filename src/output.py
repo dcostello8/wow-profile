@@ -314,6 +314,41 @@ def html_page(title, generated_at, sections):
       display: grid;
       grid-template-rows: auto auto 1fr;
     }}
+    .equipment-modal {{
+      width: min(760px, 100%);
+      max-height: min(680px, calc(100vh - 40px));
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 24px 72px rgba(15, 23, 42, .28);
+      padding: 16px 18px 20px;
+    }}
+    .equipment-modal-header {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }}
+    .equipment-modal-title {{
+      margin: 0;
+      font-size: 18px;
+    }}
+    .equipment-modal .table-wrap {{
+      overflow-x: hidden;
+      width: 100%;
+    }}
+    .equipment-modal .detail-table {{
+      width: 100%;
+      min-width: 0;
+      table-layout: fixed;
+    }}
+    .equipment-modal .detail-table th,
+    .equipment-modal .detail-table td {{
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }}
     .status-modal-header {{
       display: flex;
       justify-content: space-between;
@@ -483,6 +518,51 @@ def html_page(title, generated_at, sections):
       color: var(--text);
       font: inherit;
     }}
+    .row-menu {{
+      position: relative;
+    }}
+    .row-menu summary {{
+      list-style: none;
+      cursor: pointer;
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      font-size: 18px;
+      line-height: 1;
+    }}
+    .row-menu summary::-webkit-details-marker {{ display: none; }}
+    .row-menu-options {{
+      position: absolute;
+      right: 0;
+      z-index: 5;
+      width: 180px;
+      padding: 5px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+      display: grid;
+      gap: 2px;
+    }}
+    .row-menu-options.viewport-positioned {{
+      position: fixed;
+      right: auto;
+    }}
+    .row-menu-options button {{
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: 0;
+      text-align: left;
+      background: transparent;
+      cursor: pointer;
+      padding: 7px 9px;
+    }}
+    .row-menu-options button:hover {{ background: var(--accent-soft); }}
     th.sortable {{
       cursor: pointer;
       user-select: none;
@@ -530,6 +610,15 @@ def html_page(title, generated_at, sections):
       <pre class="status-output" id="account-status-output"></pre>
     </section>
   </div>
+  <div class="modal-backdrop" id="equipment-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="equipment-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="equipment-modal-title">Equipment Sets</h2>
+        <button class="status-close" id="equipment-modal-close" type="button" aria-label="Close equipment sets">x</button>
+      </div>
+      <div id="equipment-modal-body"></div>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
@@ -544,6 +633,12 @@ def html_page(title, generated_at, sections):
     progressCount: document.getElementById("account-progress-count"),
     progressLabel: document.getElementById("account-progress-label"),
     output: document.getElementById("account-status-output")
+  }};
+  const equipmentModal = {{
+    backdrop: document.getElementById("equipment-modal-backdrop"),
+    title: document.getElementById("equipment-modal-title"),
+    body: document.getElementById("equipment-modal-body"),
+    close: document.getElementById("equipment-modal-close")
   }};
 
   function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
@@ -565,6 +660,48 @@ def html_page(title, generated_at, sections):
 
   function closeAccountStatus() {{
     accountStatus.backdrop.hidden = true;
+  }}
+
+  function openEquipmentModal(button) {{
+    const template = document.getElementById(button.dataset.equipmentTarget);
+    if (!template) return;
+    equipmentModal.title.textContent = `${{button.dataset.characterName}} Equipment Sets`;
+    equipmentModal.body.replaceChildren(template.content.cloneNode(true));
+    equipmentModal.backdrop.hidden = false;
+  }}
+
+  function closeEquipmentModal() {{
+    equipmentModal.backdrop.hidden = true;
+    equipmentModal.body.replaceChildren();
+  }}
+
+  function positionRowMenu(details) {{
+    const options = details.querySelector(".row-menu-options");
+    const summary = details.querySelector("summary");
+    if (!options || !summary) return;
+    options.classList.remove("viewport-positioned");
+    options.style.removeProperty("top");
+    options.style.removeProperty("left");
+    const summaryRect = summary.getBoundingClientRect();
+    const menuHeight = options.offsetHeight;
+    const menuWidth = options.offsetWidth;
+    const gap = 4;
+    const top = summaryRect.bottom + menuHeight + gap <= window.innerHeight
+      ? summaryRect.bottom + gap
+      : summaryRect.top - menuHeight - gap;
+    const left = Math.min(
+      Math.max(gap, summaryRect.right - menuWidth),
+      window.innerWidth - menuWidth - gap
+    );
+    options.classList.add("viewport-positioned");
+    options.style.top = `${{Math.max(gap, top)}}px`;
+    options.style.left = `${{left}}px`;
+  }}
+
+  function closeRowMenus() {{
+    for (const menu of document.querySelectorAll(".row-menu")) {{
+      menu.open = false;
+    }}
   }}
 
   function requireLocalApi() {{
@@ -712,6 +849,43 @@ def html_page(title, generated_at, sections):
     return document.getElementById(row.dataset.detailTarget);
   }}
 
+  async function refreshCharacter(button) {{
+    const identity = button.dataset.characterRefresh;
+    const character = button.dataset.characterName || "character";
+    button.disabled = true;
+    button.closest("details").open = false;
+    showAccountStatus("Refreshing Character", `Refreshing ${{character}}...`, "running");
+    try {{
+      await postJson("/api/character-refresh", {{ identity }});
+      await pollCharacterRefresh(character, button);
+    }} catch (error) {{
+      button.disabled = false;
+      showAccountStatus("Character Refresh Failed", error.message, "failed");
+    }}
+  }}
+
+  async function pollCharacterRefresh(character, button) {{
+    try {{
+      const status = await getJson("/api/character-refresh/status");
+      if (status.running) {{
+        showAccountStatus("Refreshing Character", `${{character}} is being refreshed...`, "running", recentOutput(status));
+        window.setTimeout(() => pollCharacterRefresh(character, button), 800);
+        return;
+      }}
+      button.disabled = false;
+      if (status.returncode === 0) {{
+        await postJson("/api/summary/refresh", {{}});
+        showAccountStatus("Character Refresh Complete", `${{character}} was refreshed.`, "success", recentOutput(status));
+        reloadAccountSummary();
+      }} else if (status.returncode !== null) {{
+        showAccountStatus("Character Refresh Failed", recentOutput(status), "failed");
+      }}
+    }} catch (error) {{
+      button.disabled = false;
+      showAccountStatus("Character Refresh Failed", error.message, "failed");
+    }}
+  }}
+
   function updateEnabledSortLabels() {{
     for (const button of document.querySelectorAll("[data-enabled-sort]")) {{
       const label = button.dataset.label || button.textContent.replace(/[ ↑↓]+$/, "");
@@ -768,13 +942,39 @@ def html_page(title, generated_at, sections):
 
   for (const row of document.querySelectorAll("[data-detail-target]")) {{
     row.addEventListener("click", event => {{
-      if (event.target.closest("a")) return;
+      if (event.target.closest("a, details, button")) return;
       const target = document.getElementById(row.dataset.detailTarget);
       if (!target) return;
       const hidden = target.hasAttribute("hidden");
       target.toggleAttribute("hidden", !hidden);
       const button = row.querySelector(".toggle-button");
       if (button) button.textContent = hidden ? "-" : "+";
+    }});
+  }}
+  for (const button of document.querySelectorAll("[data-character-refresh]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu").open = false;
+      refreshCharacter(event.currentTarget);
+    }});
+  }}
+  for (const button of document.querySelectorAll("[data-equipment-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu").open = false;
+      openEquipmentModal(event.currentTarget);
+    }});
+  }}
+  document.addEventListener("click", event => {{
+    if (!event.target.closest(".row-menu")) closeRowMenus();
+  }});
+  for (const menu of document.querySelectorAll(".row-menu")) {{
+    menu.addEventListener("toggle", () => {{
+      if (!menu.open) return;
+      for (const otherMenu of document.querySelectorAll(".row-menu")) {{
+        if (otherMenu !== menu) otherMenu.open = false;
+      }}
+      positionRowMenu(menu);
     }});
   }}
   const enabledFilter = document.getElementById("enabled-character-filter");
@@ -838,6 +1038,7 @@ def html_page(title, generated_at, sections):
     button.addEventListener("click", () => startSummaryCommand(button.dataset.summaryCommand));
   }}
   if (accountStatus.close) accountStatus.close.addEventListener("click", closeAccountStatus);
+  if (equipmentModal.close) equipmentModal.close.addEventListener("click", closeEquipmentModal);
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -1001,6 +1202,7 @@ def enabled_characters_table(documents):
         if (((document.get("sections") or {}).get("profile") or {}).get("faction") or {}).get("name")
     })
     body = []
+    equipment_sources = []
     for index, document in enumerate(sorted_documents):
         character = document.get("character") or {}
         profile_sections = document.get("sections") or {}
@@ -1022,6 +1224,7 @@ def enabled_characters_table(documents):
         ]).casefold()
         body.append(
             f'<tr class="expandable-row" data-detail-target="{detail_id}" '
+            f'data-character-key="{html_cell(character.get("key"))}" '
             f'data-name="{html_cell(character_name)}" '
             f'data-realm="{html_cell(realm_name)}" '
             f'data-faction="{html_cell(faction_name)}" '
@@ -1040,18 +1243,28 @@ def enabled_characters_table(documents):
             + html_tag("td", profile.get("equipped_item_level"))
             + html_tag("td", best_mythic_rating(profile_sections.get("mythic_plus")))
             + html_tag("td", professions)
+            + '<td class="row-action-cell">'
+            + '<details class="row-menu">'
+            + '<summary aria-label="Character actions">...</summary>'
+            + '<div class="row-menu-options">'
+            + f'<button type="button" data-character-refresh="{html_cell(character.get("key"))}" data-character-name="{html_cell(character_name)}">Refresh</button>'
+            + f'<button type="button" data-equipment-target="equipment-sets-{index}" data-character-name="{html_cell(character_name)}">Equipment Sets</button>'
+            + '</div></details></td>'
             + "</tr>"
         )
         body.append(
             f'<tr id="{detail_id}" class="detail-row" hidden>'
-            '<td class="detail-cell" colspan="10">'
+            '<td class="detail-cell" colspan="11">'
             '<div class="detail-title">Spec Details</div>'
             + local_spec_details_html(document)
-            + '<div class="detail-title detail-title-spaced">Equipment Sets</div>'
-            + local_equipment_sets_details_html(document)
             + '<div class="detail-title detail-title-spaced">Expansion Skill Levels</div>'
             + profession_skill_details_html(document, f"profession-skills-{index}")
             + "</td></tr>"
+        )
+        equipment_sources.append(
+            f'<template id="equipment-sets-{index}">'
+            + local_equipment_sets_details_html(document)
+            + "</template>"
         )
 
     return (
@@ -1087,9 +1300,11 @@ def enabled_characters_table(documents):
         + '<th class="sortable"><button type="button" data-enabled-sort="ilevel">iLevel</button></th>'
         + html_tag("th", "Mythic+")
         + html_tag("th", "Professions")
+        + html_tag("th", "")
         + '</tr></thead><tbody id="enabled-character-body">'
         + "".join(body)
         + "</tbody></table></div>"
+        + "".join(equipment_sources)
     )
 
 
@@ -1321,7 +1536,7 @@ def active_character_documents(roster_characters, character_documents):
     active_keys = {
         character_identity_key(character)
         for character in roster_characters
-        if character.get("enabled") is True
+        if character.get("enabled") is True and not character.get("stale")
     }
     return [
         document
@@ -1365,14 +1580,12 @@ def roster_by_realm_table(characters):
             "<tr>"
             + html_tag("td", character.get("name"))
             + f'<td>{active_switch_cell(character)}</td>'
-            + html_tag("td", "yes" if character.get("stale") else "no")
             + "</tr>"
         )
     return (
         '<div class="table-wrap"><table><thead><tr>'
         + html_tag("th", "Character")
         + html_tag("th", "Active")
-        + html_tag("th", "Stale")
         + "</tr></thead><tbody>"
         + "".join(body)
         + "</tbody></table></div>"
@@ -1417,16 +1630,21 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         for character in roster.get("characters", [])
         if isinstance(character, dict)
     ]
-    active_documents = active_character_documents(roster_characters, character_documents)
-    enabled_count = sum(1 for character in roster_characters if character.get("enabled"))
+    current_roster_characters = [
+        character
+        for character in roster_characters
+        if not character.get("stale")
+    ]
+    active_documents = active_character_documents(current_roster_characters, character_documents)
+    enabled_count = sum(1 for character in current_roster_characters if character.get("enabled"))
     realms = sorted({
         character.get("realm") or "Unknown Realm"
-        for character in roster_characters
+        for character in current_roster_characters
     })
 
     sections = [
         '<section class="stats">'
-        + stat_card("Characters Discovered", len(roster_characters))
+        + stat_card("Characters Discovered", len(current_roster_characters))
         + stat_card("Active", enabled_count)
         + stat_card("Realms", len(realms))
         + "</section>"
@@ -1469,7 +1687,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     sections.append(profession_coverage_table(active_documents))
 
     grouped = {}
-    for character in roster_characters:
+    for character in current_roster_characters:
         realm = character.get("realm") or "Unknown Realm"
         grouped.setdefault(realm, []).append(character)
     sections.append(section_heading(

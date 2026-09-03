@@ -1,4 +1,5 @@
 import tempfile
+import sys
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -13,11 +14,14 @@ from src.roster_ui import (
     HTML,
     RosterUIHandler,
     UpdateState,
+    CharacterRefreshState,
     activate_character_with_profile_update,
     roster_payload,
+    run_initial_discover_then_update,
     set_all_enabled,
     set_character_enabled,
     start_initial_update,
+    UpdateState,
 )
 
 
@@ -102,6 +106,19 @@ class RosterUITests(unittest.TestCase):
         self.assertTrue(output_exists)
         self.assertTrue(index_exists)
 
+    def test_character_refresh_requires_an_active_character(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self.write_roster(directory)
+
+            state = CharacterRefreshState()
+            with patch("src.roster_ui.import_latest_local_data_before_update"):
+                self.assertTrue(state.start("us:id:1", path))
+                while state.snapshot()["running"]:
+                    pass
+
+        self.assertEqual(state.snapshot()["returncode"], 1)
+        self.assertIn("must be active", state.snapshot()["output"])
+
     def test_activate_character_keeps_character_inactive_when_profile_fails(self):
         with tempfile.TemporaryDirectory() as directory:
             path = self.write_roster(directory)
@@ -167,6 +184,46 @@ class RosterUITests(unittest.TestCase):
         self.assertEqual(snapshot["progress"]["label"], "Thaigan - Windrunner")
         self.assertEqual(snapshot["progress"]["percent"], 23)
 
+    def test_update_state_imports_local_data_before_starting_update(self):
+        events = []
+
+        class Process:
+            stdout = []
+
+            def wait(self):
+                events.append("wait")
+                return 0
+
+        def import_local(state):
+            events.append("import")
+            state.append_output("Imported latest local WoW data from fixture.")
+
+        with patch("src.roster_ui.subprocess.Popen", side_effect=lambda *args, **kwargs: (events.append("start") or Process())):
+            state = UpdateState(before_run=import_local)
+            self.assertTrue(state.start())
+            while state.snapshot()["running"]:
+                pass
+
+        self.assertEqual(events, ["import", "start", "wait"])
+        self.assertIn("Imported latest local", state.snapshot()["output"])
+
+    def test_frozen_update_state_relaunches_executable_without_script_argument(self):
+        class Process:
+            stdout = []
+
+            def wait(self):
+                return 0
+
+        with patch("src.roster_ui.sys.frozen", True, create=True), patch(
+            "src.roster_ui.subprocess.Popen", return_value=Process()
+        ) as popen:
+            state = UpdateState()
+            self.assertTrue(state.start())
+            while state.snapshot()["running"]:
+                pass
+
+        self.assertEqual(popen.call_args.args[0], [sys.executable, "update"])
+
     def test_update_state_tracks_deactivated_characters(self):
         state = UpdateState()
         state.append_output("Set Absecon - Darrowmere inactive because its public profile is unavailable.")
@@ -192,22 +249,75 @@ class RosterUITests(unittest.TestCase):
         self.assertNotIn(">Enabled<", HTML)
         self.assertNotIn(">Disabled<", HTML)
 
-    def test_server_startup_starts_initial_update(self):
+    def test_server_startup_runs_discover_before_initial_update(self):
+        events = []
+
         class State:
-            def __init__(self):
+            def __init__(self, name):
+                self.name = name
                 self.started = False
+                self.running = False
+                self.returncode = 0
 
             def start(self):
+                events.append(f"{self.name}:start")
                 self.started = True
                 return True
 
+            def snapshot(self):
+                return {
+                    "running": self.running,
+                    "returncode": self.returncode,
+                }
+
         class Server:
-            update_state = State()
+            discover_state = State("discover")
+            update_state = State("update")
+
+            def on_roster_change(self):
+                events.append("refresh-summary")
 
         server = Server()
 
-        self.assertTrue(start_initial_update(server))
+        with patch("src.roster_ui.webbrowser.open", side_effect=lambda url: events.append(f"open:{url}")) as open_browser:
+            result = run_initial_discover_then_update(
+                server,
+                open_url="http://127.0.0.1:8765/",
+                wait_interval=0,
+            )
+
+        self.assertEqual(result, {"discover_started": True, "update_started": True})
+        self.assertEqual(events, [
+            "discover:start",
+            "refresh-summary",
+            "open:http://127.0.0.1:8765/",
+            "update:start",
+            "refresh-summary",
+        ])
+        open_browser.assert_called_once_with("http://127.0.0.1:8765/")
+        self.assertTrue(server.discover_state.started)
         self.assertTrue(server.update_state.started)
+
+    def test_start_initial_update_starts_background_startup_workflow(self):
+        class State:
+            def start(self):
+                return False
+
+            def snapshot(self):
+                return {"running": False, "returncode": None}
+
+        class Server:
+            discover_state = State()
+            update_state = State()
+            on_roster_change = lambda self: None
+
+        with patch("src.roster_ui.run_initial_discover_then_update") as workflow:
+            self.assertTrue(start_initial_update(Server()))
+            for thread in threading.enumerate():
+                if thread is not threading.current_thread():
+                    thread.join(timeout=1)
+
+        workflow.assert_called()
 
     def test_summary_refresh_endpoint_runs_roster_change_hook(self):
         calls = []

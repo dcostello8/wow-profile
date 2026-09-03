@@ -1,8 +1,10 @@
 import unittest
+from unittest.mock import patch
 
 from src.config import DEFAULT_UPDATE_SETTINGS, selected_update_sections
 from src.cli import (
     deactivate_if_public_profile_unavailable,
+    main,
     public_profile_unavailable,
 )
 
@@ -71,6 +73,18 @@ class CliTests(unittest.TestCase):
             "reputations",
             "titles",
         ])
+
+    def test_no_arguments_start_the_local_page(self):
+        with patch("src.cli.import_latest_local_data"), patch("src.cli.refresh_local_output_summaries"), patch(
+            "src.cli.run_roster_ui", return_value=0
+        ) as run_ui:
+            self.assertEqual(main([]), 0)
+
+        run_ui.assert_called_once_with(
+            "127.0.0.1",
+            8765,
+            on_roster_change=unittest.mock.ANY,
+        )
 
 
 if __name__ == "__main__":
