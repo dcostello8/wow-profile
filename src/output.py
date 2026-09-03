@@ -619,6 +619,15 @@ def html_page(title, generated_at, sections):
       <div id="equipment-modal-body"></div>
     </section>
   </div>
+  <div class="modal-backdrop" id="professions-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="professions-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="professions-modal-title">Professions</h2>
+        <button class="status-close" id="professions-modal-close" type="button" aria-label="Close professions">x</button>
+      </div>
+      <div id="professions-modal-body"></div>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
@@ -639,6 +648,12 @@ def html_page(title, generated_at, sections):
     title: document.getElementById("equipment-modal-title"),
     body: document.getElementById("equipment-modal-body"),
     close: document.getElementById("equipment-modal-close")
+  }};
+  const professionsModal = {{
+    backdrop: document.getElementById("professions-modal-backdrop"),
+    title: document.getElementById("professions-modal-title"),
+    body: document.getElementById("professions-modal-body"),
+    close: document.getElementById("professions-modal-close")
   }};
 
   function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
@@ -675,6 +690,20 @@ def html_page(title, generated_at, sections):
     equipmentModal.body.replaceChildren();
   }}
 
+  function openProfessionsModal(button) {{
+    const template = document.getElementById(button.dataset.professionsTarget);
+    if (!template) return;
+    professionsModal.title.textContent = `${{button.dataset.characterName}} Professions`;
+    professionsModal.body.replaceChildren(template.content.cloneNode(true));
+    bindExpandableRows(professionsModal.body);
+    professionsModal.backdrop.hidden = false;
+  }}
+
+  function closeProfessionsModal() {{
+    professionsModal.backdrop.hidden = true;
+    professionsModal.body.replaceChildren();
+  }}
+
   function positionRowMenu(details) {{
     const options = details.querySelector(".row-menu-options");
     const summary = details.querySelector("summary");
@@ -701,6 +730,20 @@ def html_page(title, generated_at, sections):
   function closeRowMenus() {{
     for (const menu of document.querySelectorAll(".row-menu")) {{
       menu.open = false;
+    }}
+  }}
+
+  function bindExpandableRows(root) {{
+    for (const row of root.querySelectorAll("[data-detail-target]")) {{
+      row.addEventListener("click", event => {{
+        if (event.target.closest("a, details, button")) return;
+        const target = document.getElementById(row.dataset.detailTarget);
+        if (!target) return;
+        const hidden = target.hasAttribute("hidden");
+        target.toggleAttribute("hidden", !hidden);
+        const button = row.querySelector(".toggle-button");
+        if (button) button.textContent = hidden ? "-" : "+";
+      }});
     }}
   }}
 
@@ -940,17 +983,7 @@ def html_page(title, generated_at, sections):
     filterEnabledCharacters();
   }}
 
-  for (const row of document.querySelectorAll("[data-detail-target]")) {{
-    row.addEventListener("click", event => {{
-      if (event.target.closest("a, details, button")) return;
-      const target = document.getElementById(row.dataset.detailTarget);
-      if (!target) return;
-      const hidden = target.hasAttribute("hidden");
-      target.toggleAttribute("hidden", !hidden);
-      const button = row.querySelector(".toggle-button");
-      if (button) button.textContent = hidden ? "-" : "+";
-    }});
-  }}
+  bindExpandableRows(document);
   for (const button of document.querySelectorAll("[data-character-refresh]")) {{
     button.addEventListener("click", event => {{
       event.stopPropagation();
@@ -963,6 +996,13 @@ def html_page(title, generated_at, sections):
       event.stopPropagation();
       button.closest(".row-menu").open = false;
       openEquipmentModal(event.currentTarget);
+    }});
+  }}
+  for (const button of document.querySelectorAll("[data-professions-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu").open = false;
+      openProfessionsModal(event.currentTarget);
     }});
   }}
   document.addEventListener("click", event => {{
@@ -1039,6 +1079,7 @@ def html_page(title, generated_at, sections):
   }}
   if (accountStatus.close) accountStatus.close.addEventListener("click", closeAccountStatus);
   if (equipmentModal.close) equipmentModal.close.addEventListener("click", closeEquipmentModal);
+  if (professionsModal.close) professionsModal.close.addEventListener("click", closeProfessionsModal);
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -1203,6 +1244,7 @@ def enabled_characters_table(documents):
     })
     body = []
     equipment_sources = []
+    profession_sources = []
     for index, document in enumerate(sorted_documents):
         character = document.get("character") or {}
         profile_sections = document.get("sections") or {}
@@ -1249,6 +1291,7 @@ def enabled_characters_table(documents):
             + '<div class="row-menu-options">'
             + f'<button type="button" data-character-refresh="{html_cell(character.get("key"))}" data-character-name="{html_cell(character_name)}">Refresh</button>'
             + f'<button type="button" data-equipment-target="equipment-sets-{index}" data-character-name="{html_cell(character_name)}">Equipment Sets</button>'
+            + f'<button type="button" data-professions-target="professions-{index}" data-character-name="{html_cell(character_name)}">Professions</button>'
             + '</div></details></td>'
             + "</tr>"
         )
@@ -1257,13 +1300,16 @@ def enabled_characters_table(documents):
             '<td class="detail-cell" colspan="11">'
             '<div class="detail-title">Spec Details</div>'
             + local_spec_details_html(document)
-            + '<div class="detail-title detail-title-spaced">Expansion Skill Levels</div>'
-            + profession_skill_details_html(document, f"profession-skills-{index}")
             + "</td></tr>"
         )
         equipment_sources.append(
             f'<template id="equipment-sets-{index}">'
             + local_equipment_sets_details_html(document)
+            + "</template>"
+        )
+        profession_sources.append(
+            f'<template id="professions-{index}">'
+            + profession_skill_details_html(document, f"profession-skills-{index}")
             + "</template>"
         )
 
@@ -1305,6 +1351,7 @@ def enabled_characters_table(documents):
         + "".join(body)
         + "</tbody></table></div>"
         + "".join(equipment_sources)
+        + "".join(profession_sources)
     )
 
 
