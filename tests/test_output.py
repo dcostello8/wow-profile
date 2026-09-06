@@ -290,6 +290,96 @@ class OutputTests(unittest.TestCase):
             document["sections"]["hunter_pets"]["hunter_pets"][0]["is_active"]
         )
 
+    def test_bindings_menu_modal_and_multiple_spec_rendering(self):
+        document = {
+            "character": {"name": "Jaedon", "realm": "Windrunner", "class_id": 7},
+            "local_client_data": {
+                "specs": {
+                    "262": {
+                        "spec_id": 262,
+                        "spec_name": "Elemental",
+                        "captured_at": "2026-08-31T18:30:00Z",
+                        "configuration_presentation": {
+                            "key_bindings": [{
+                                "binding": "Alt-2",
+                                "label": "Wind Shear",
+                                "action_type": "spell",
+                                "action_bar_slot": 26,
+                            }],
+                            "click_bindings": [{
+                                "binding": "Shift + LeftButton",
+                                "label": "Chain Heal",
+                            }],
+                        },
+                    },
+                    "264": {
+                        "spec_id": 264,
+                        "spec_name": "Restoration",
+                        "captured_at": "2026-08-31T18:35:00Z",
+                        "configuration_presentation": {
+                            "key_bindings": [{
+                                "binding": "3",
+                                "label": "Mouseover Heal",
+                                "action_type": "macro",
+                                "action_bar_slot": 3,
+                            }],
+                            "click_bindings": [],
+                        },
+                    },
+                }
+            },
+            "sections": {"profile": {"character_class": {"name": "Shaman"}}},
+        }
+
+        html = enabled_characters_table([document])
+        template = html.split('<template id="bindings-0">', 1)[1].split("</template>", 1)[0]
+
+        self.assertIn('>Bindings</button>', html)
+        self.assertIn('data-bindings-target="bindings-0"', html)
+        self.assertIn("Elemental", template)
+        self.assertIn("Restoration", template)
+        self.assertIn('data-binding-spec-target="0"', template)
+        self.assertIn('data-binding-spec-target="1"', template)
+        self.assertIn("Wind Shear", template)
+        self.assertIn("Mouseover Heal", template)
+        self.assertIn("Left Click", template)
+        self.assertIn('datetime="2026-08-31T18:30:00Z" data-local-time', template)
+        self.assertNotIn("57994", template)
+        self.assertNotIn("macro ID", template)
+
+    def test_bindings_modal_handles_missing_local_data(self):
+        html = enabled_characters_table([{
+            "character": {"name": "NoBindings", "realm": "Windrunner", "class_id": 8},
+            "sections": {"profile": {"character_class": {"name": "Mage"}}},
+        }])
+
+        template = html.split('<template id="bindings-0">', 1)[1].split("</template>", 1)[0]
+
+        self.assertIn("No local binding data captured for this character.", template)
+
+    def test_bindings_modal_normalizes_additional_mouse_buttons(self):
+        document = {
+            "character": {"name": "Mouse", "realm": "Windrunner", "class_id": 7},
+            "local_client_data": {
+                "specs": {
+                    "262": {
+                        "spec_id": 262,
+                        "spec_name": "Elemental",
+                        "click_bindings": [{
+                            "display_binding": "CTRL + Button4",
+                            "action": "Interrupt",
+                        }],
+                    }
+                }
+            },
+            "sections": {"profile": {"character_class": {"name": "Shaman"}}},
+        }
+
+        html = enabled_characters_table([document])
+
+        self.assertIn("Mouse Button 4", html)
+        self.assertNotIn("CTRL + Button4", html)
+
     def test_hunter_pets_modal_shows_capacity_and_sorts_by_hidden_slot(self):
         pets = [
             {
@@ -513,6 +603,9 @@ class OutputTests(unittest.TestCase):
         self.assertIn('id="collections-modal-body"', html)
         self.assertIn('id="hunter-pets-modal-backdrop"', html)
         self.assertIn('id="hunter-pets-modal-body"', html)
+        self.assertIn('id="bindings-modal-backdrop"', html)
+        self.assertIn('id="bindings-modal-body"', html)
+        self.assertIn("openBindingsModal", html)
         self.assertIn('openHunterPetsModal', html)
         self.assertIn('button.dataset.characterName', html)
         self.assertIn("width: 180px", html)

@@ -93,6 +93,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Replaced Active Yes/No with a Status column using Active/Stabled labels.
   - Kept Blizzard `slot` and `is_active` values unchanged in the underlying response data.
 - Enhanced the Hunter Pets modal with a `count / 210 pets` capacity summary and ascending Blizzard slot ordering. Slot remains hidden and the Beast Mastery Animal Companion slot is not inferred or counted.
+- Implemented client-configuration Phase 1 presentation:
+  - Added a Bindings action and character-specific modal to the active-character menu.
+  - Added specialization tabs keyed by Blizzard specialization ID.
+  - Rendered normalized keybinding and click-cast presentation rows, capture timestamps, macro labels, and display-only mouse names.
+  - Added graceful empty states without changing SavedVariables or comparison logic.
 
 ### WoW Addon
 
@@ -357,7 +362,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 101 tests in 0.744s
+Ran 104 tests in 0.784s
 OK
 ```
 

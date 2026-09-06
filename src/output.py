@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .blizzard.cache import JsonCache
 from .collections import calculate_mounts, calculate_pets
+from .config_analysis import presentation_data
 from .config import require_character_field
 
 
@@ -478,6 +479,35 @@ def html_page(title, generated_at, sections):
     .detail-empty {{
       color: var(--muted);
     }}
+    .binding-spec-tabs {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }}
+    .binding-spec-tab {{
+      min-height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }}
+    .binding-spec-tab.active {{
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }}
+    .binding-spec-panel[hidden] {{
+      display: none;
+    }}
+    .binding-capture {{
+      color: var(--muted);
+      font-size: 13px;
+      margin: 0 0 14px;
+    }}
     .muted {{ color: var(--muted); }}
     .status-updated {{ color: var(--good); font-weight: 650; }}
     .status-partial {{ color: var(--warn); font-weight: 650; }}
@@ -657,6 +687,15 @@ def html_page(title, generated_at, sections):
       <div id="hunter-pets-modal-body"></div>
     </section>
   </div>
+  <div class="modal-backdrop" id="bindings-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="bindings-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="bindings-modal-title">Bindings</h2>
+        <button class="status-close" id="bindings-modal-close" type="button" aria-label="Close bindings">x</button>
+      </div>
+      <div id="bindings-modal-body"></div>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
@@ -695,6 +734,12 @@ def html_page(title, generated_at, sections):
     title: document.getElementById("hunter-pets-modal-title"),
     body: document.getElementById("hunter-pets-modal-body"),
     close: document.getElementById("hunter-pets-modal-close")
+  }};
+  const bindingsModal = {{
+    backdrop: document.getElementById("bindings-modal-backdrop"),
+    title: document.getElementById("bindings-modal-title"),
+    body: document.getElementById("bindings-modal-body"),
+    close: document.getElementById("bindings-modal-close")
   }};
 
   function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
@@ -769,6 +814,33 @@ def html_page(title, generated_at, sections):
 
   function openHunterPetsModal(button) {{
     openTemplateModal(hunterPetsModal, button, "Hunter Pets");
+  }}
+
+  function bindBindingsTabs(root) {{
+    const tabs = root.querySelectorAll("[data-binding-spec-target]");
+    const panels = root.querySelectorAll("[data-binding-spec-panel]");
+    for (const tab of tabs) {{
+      tab.addEventListener("click", () => {{
+        const target = tab.dataset.bindingSpecTarget;
+        for (const otherTab of tabs) otherTab.classList.toggle("active", otherTab === tab);
+        for (const panel of panels) panel.hidden = panel.dataset.bindingSpecPanel !== target;
+      }});
+    }}
+  }}
+
+  function openBindingsModal(button) {{
+    const template = document.getElementById(button.dataset.bindingsTarget);
+    if (!template) return;
+    bindingsModal.title.textContent = `${{button.dataset.characterName}} Bindings`;
+    bindingsModal.body.replaceChildren(template.content.cloneNode(true));
+    bindBindingsTabs(bindingsModal.body);
+    formatLocalTimes(bindingsModal.body);
+    bindingsModal.backdrop.hidden = false;
+  }}
+
+  function closeBindingsModal() {{
+    bindingsModal.backdrop.hidden = true;
+    bindingsModal.body.replaceChildren();
   }}
 
   function positionRowMenu(details) {{
@@ -919,9 +991,9 @@ def html_page(title, generated_at, sections):
     return String(left ?? "").localeCompare(String(right ?? ""), undefined, {{ sensitivity: "base", numeric: true }});
   }}
 
-  function formatLocalTimes() {{
+  function formatLocalTimes(root = document) {{
     const pad = value => String(value).padStart(2, "0");
-    for (const element of document.querySelectorAll("[data-local-time]")) {{
+    for (const element of root.querySelectorAll("[data-local-time]")) {{
       const value = element.getAttribute("datetime") || element.textContent;
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) continue;
@@ -1086,6 +1158,13 @@ def html_page(title, generated_at, sections):
       openHunterPetsModal(event.currentTarget);
     }});
   }}
+  for (const button of document.querySelectorAll("[data-bindings-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu")?.removeAttribute("open");
+      openBindingsModal(event.currentTarget);
+    }});
+  }}
   document.addEventListener("click", event => {{
     if (!event.target.closest(".row-menu")) closeRowMenus();
   }});
@@ -1163,6 +1242,7 @@ def html_page(title, generated_at, sections):
   if (professionsModal.close) professionsModal.close.addEventListener("click", closeProfessionsModal);
   if (collectionsModal.close) collectionsModal.close.addEventListener("click", () => closeTemplateModal(collectionsModal));
   if (hunterPetsModal.close) hunterPetsModal.close.addEventListener("click", () => closeTemplateModal(hunterPetsModal));
+  if (bindingsModal.close) bindingsModal.close.addEventListener("click", closeBindingsModal);
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -1329,6 +1409,7 @@ def enabled_characters_table(documents):
     equipment_sources = []
     profession_sources = []
     hunter_pets_sources = []
+    binding_sources = []
     for index, document in enumerate(sorted_documents):
         character = document.get("character") or {}
         profile_sections = document.get("sections") or {}
@@ -1376,6 +1457,7 @@ def enabled_characters_table(documents):
             + f'<button type="button" data-character-refresh="{html_cell(character.get("key"))}" data-character-name="{html_cell(character_name)}">Refresh</button>'
             + f'<button type="button" data-equipment-target="equipment-sets-{index}" data-character-name="{html_cell(character_name)}">Equipment Sets</button>'
             + f'<button type="button" data-professions-target="professions-{index}" data-character-name="{html_cell(character_name)}">Professions</button>'
+            + f'<button type="button" data-bindings-target="bindings-{index}" data-character-name="{html_cell(character_name)}">Bindings</button>'
             + hunter_pets_action_html(character, character_name, index)
             + '</div></details></td>'
             + "</tr>"
@@ -1398,6 +1480,11 @@ def enabled_characters_table(documents):
             + "</template>"
         )
         hunter_pets_sources.append(hunter_pets_template_html(document, character, index))
+        binding_sources.append(
+          f'<template id="bindings-{index}">'
+          + bindings_details_html(document)
+          + "</template>"
+        )
 
     return (
         '<div class="table-tools">'
@@ -1439,6 +1526,7 @@ def enabled_characters_table(documents):
         + "".join(equipment_sources)
         + "".join(profession_sources)
         + "".join(hunter_pets_sources)
+        + "".join(binding_sources)
     )
 
 def hunter_pets_action_html(character, character_name, index):
@@ -1447,6 +1535,117 @@ def hunter_pets_action_html(character, character_name, index):
     return (
         f'<button type="button" data-hunter-pets-target="hunter-pets-{index}" '
         f'data-character-name="{html_cell(character_name)}">Hunter Pets</button>'
+    )
+
+
+def binding_display_mouse_name(binding):
+    mouse_names = {
+        "LeftButton": "Left Click",
+        "MiddleButton": "Middle Click",
+        "RightButton": "Right Click",
+    }
+    if binding in mouse_names:
+        return mouse_names[binding]
+    if isinstance(binding, str) and binding.startswith("Button"):
+        suffix = binding.removeprefix("Button")
+        if suffix.isdigit():
+            return f"Mouse Button {suffix}"
+    return binding
+
+
+def binding_display_type(value):
+    if not value:
+        return ""
+    return str(value).replace("_", " ").title()
+
+
+def bindings_spec_data(document):
+    local_data = document.get("local_client_data") or {}
+    specs = local_data.get("specs") or {}
+    return sorted(
+        [
+            (str(spec_id), spec)
+            for spec_id, spec in specs.items()
+            if isinstance(spec, dict)
+        ],
+        key=lambda item: int(item[0]) if item[0].isdigit() else item[0],
+    )
+
+
+def binding_presentation(spec):
+    presentation = spec.get("configuration_presentation")
+    if isinstance(presentation, dict):
+        return presentation
+    return presentation_data(spec)
+
+
+def bindings_spec_panel_html(spec_id, spec, index, active):
+    presentation = binding_presentation(spec)
+    key_rows = [
+        [
+            row.get("binding"),
+            row.get("label"),
+            binding_display_type(row.get("action_type")),
+            row.get("action_bar_slot"),
+        ]
+        for row in presentation.get("key_bindings") or []
+    ]
+    click_rows = [
+        [
+            " + ".join(
+                binding_display_mouse_name(part)
+                for part in str(row.get("binding") or "").split(" + ")
+            ),
+            row.get("label"),
+        ]
+        for row in presentation.get("click_bindings") or []
+    ]
+    panel_id = f"binding-panel-{index}"
+    hidden = "" if active else " hidden"
+    key_section = (
+        table(["Binding", "Action", "Type", "Slot"], key_rows)
+        if key_rows
+        else '<div class="detail-empty">No keybindings captured.</div>'
+    )
+    click_section = (
+        table(["Binding", "Action"], click_rows)
+        if click_rows
+        else '<div class="detail-empty">No click-cast bindings captured.</div>'
+    )
+    captured = local_time(spec.get("captured_at")) or "Not available"
+    return (
+        f'<section id="{panel_id}" class="binding-spec-panel" '
+        f'data-binding-spec-panel="{index}" data-spec-id="{html_cell(spec_id)}"{hidden}>'
+        f'<div class="binding-capture">Captured: {captured}</div>'
+        '<div class="detail-title">Keybindings</div>'
+        + key_section
+        + '<div class="detail-title detail-title-spaced">Click Casts</div>'
+        + click_section
+        + "</section>"
+    )
+
+
+def bindings_details_html(document):
+    specs = bindings_spec_data(document)
+    if not specs:
+        return '<div class="detail-empty">No local binding data captured for this character.</div>'
+    tabs = []
+    panels = []
+    for index, (spec_id, spec) in enumerate(specs):
+        active = index == 0
+        spec_name = spec.get("spec_name") or spec_id
+        active_class = " active" if active else ""
+        tabs.append(
+            f'<button type="button" class="binding-spec-tab{active_class}" '
+            f'data-binding-spec-target="{index}" data-spec-id="{html_cell(spec_id)}">'
+            f'{html_cell(spec_name)}</button>'
+        )
+        panels.append(bindings_spec_panel_html(spec_id, spec, index, active))
+    return (
+        '<div class="binding-spec-tabs">'
+        + "".join(tabs)
+        + "</div>"
+        + "".join(panels)
     )
 
 

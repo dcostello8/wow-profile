@@ -129,6 +129,8 @@ Collection detail modals intentionally expose only user-facing state and names: 
 
 Hunter Pets modals consume the Character Profile API's `sections.hunter_pets.hunter_pets` list and display a `<count> / 210 pets` summary plus Name, Creature, Level, and Status. The 210 capacity is five normal callable slots plus 205 stable storage slots; the Beast Mastery Animal Companion slot is separate and is not inferred. Pets are sorted by Blizzard `slot` on a copied list, while raw slot values remain unchanged. Status maps Blizzard `is_active: true` to `Active` and `false` to `Stabled`. Creature IDs, slot values, and the obsolete Family field are not rendered; absent and failed responses continue to use the existing empty/error states.
 
+Phase 1 client-configuration presentation adds a Bindings action to active-character menus. The modal uses normalized `configuration_presentation` rows, supports multiple captured specializations, displays capture timestamps and key/click bindings, and handles missing local data without errors.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -385,7 +387,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 101 tests
+Ran 104 tests
 OK
 ```
 
