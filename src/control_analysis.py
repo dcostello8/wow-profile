@@ -25,6 +25,9 @@ def load_ability_roles(path=DEFAULT_ROLE_FILE):
         data = yaml.safe_load(handle) or {}
     if not isinstance(data, dict):
         raise ValueError("Ability role data must be a mapping.")
+    version = data.get("version", 1)
+    if version != 1:
+        raise ValueError(f"Unsupported ability role schema version: {version!r}")
     abilities = data.get("abilities")
     if not isinstance(abilities, dict):
         raise ValueError("Ability role data must contain an 'abilities' mapping.")
@@ -50,14 +53,15 @@ def _assignment_rows(spec, role_map):
     for row in presentation_data(spec)["key_bindings"] + presentation_data(spec)["click_bindings"]:
         spell_id = row.get("spell_id")
         try:
-            definition = role_map.get(int(spell_id))
+            normalized_spell_id = int(spell_id)
         except (TypeError, ValueError):
-            definition = None
+            normalized_spell_id = None
+        definition = role_map.get(normalized_spell_id) if normalized_spell_id else None
         roles = definition["roles"] if definition else [None]
         for role in roles:
             yield {
                 "role": role,
-                "spell_id": int(spell_id),
+                "spell_id": normalized_spell_id,
                 "ability": row.get("label") or (definition or {}).get("name") or str(spell_id),
                 "binding": row.get("binding"),
                 "source": row.get("source"),

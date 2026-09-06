@@ -135,6 +135,8 @@ Client-configuration Phase 2 corrects comparison semantics by comparing complete
 
 Client-configuration Phase 3 adds curated functional roles from `data/ability_roles.yaml` and `src/control_analysis.py`. The Account Summary Controls section aggregates mapped abilities across active character documents, preserves Blizzard spell/spec IDs and key/click source, and reports Consistent, Varied, or Unused role state. Role names are not inferred from ability names; unknown abilities remain unclassified.
 
+Client-configuration Phase 4 adds the optional `data/binding_rules.yaml` convention schema and `src/binding_audit.py`. The Controls section exposes Pass/Issues counts and an Audit view using Python-authoritative PASS, MISMATCH, MISSING, and NOT_APPLICABLE results. No user convention is seeded unless intentionally confirmed.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -391,7 +393,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 118 tests
+Ran 126 tests
 OK
 ```
 

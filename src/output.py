@@ -8,6 +8,7 @@ from .collections import calculate_mounts, calculate_pets
 from .config_analysis import presentation_data
 from .config import require_character_field
 from .control_analysis import analyze_active_controls
+from .binding_audit import audit_active_controls
 
 
 OUTPUT_DIR = Path("output")
@@ -810,7 +811,8 @@ def html_page(title, generated_at, sections):
     const target = button.dataset.templateTarget
       || button.dataset.collectionTarget
       || button.dataset.hunterPetsTarget
-      || button.dataset.controlTarget;
+      || button.dataset.controlTarget
+      || button.dataset.auditTarget;
     const template = document.getElementById(target);
     if (!template) return;
     modal.title.textContent = button.dataset.characterName
@@ -862,6 +864,10 @@ def html_page(title, generated_at, sections):
 
   function openControlsModal(button) {{
     openTemplateModal(controlsModal, button, `${{button.dataset.controlRole}} Controls`);
+  }}
+
+  function openControlsAuditModal(button) {{
+    openTemplateModal(controlsModal, button, `${{button.dataset.controlRole}} Audit`);
   }}
 
   function closeControlsModal() {{
@@ -1196,6 +1202,12 @@ def html_page(title, generated_at, sections):
       event.stopPropagation();
       button.closest(".row-menu")?.removeAttribute("open");
       openControlsModal(event.currentTarget);
+    }});
+  }}
+  for (const button of document.querySelectorAll("[data-audit-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      openControlsAuditModal(event.currentTarget);
     }});
   }}
   document.addEventListener("click", event => {{
@@ -1895,12 +1907,35 @@ def controls_role_details_html(result):
     return table(["Character", "Spec", "Ability", "Binding", "Source"], rows)
 
 
+def controls_audit_details_html(result):
+    if not result:
+        return '<div class="detail-empty">No binding rule configured for this role.</div>'
+    audit_rows = result.get("results") or []
+    if not audit_rows or all(item.get("status") == "NOT_APPLICABLE" for item in audit_rows):
+        return '<div class="detail-empty">No binding rule configured for this role.</div>'
+    rows = []
+    for item in audit_rows:
+        rows.append([
+            item.get("character"),
+            item.get("spec_name"),
+            item.get("ability"),
+            item.get("binding"),
+            f'{item.get("expected_source", "").title()}: {item.get("expected_binding", "")}',
+            item.get("status"),
+        ])
+    return table(["Character", "Spec", "Ability", "Binding", "Expected", "Status"], rows)
+
+
 def controls_section(documents):
     results = analyze_active_controls(documents)
     if not results:
         return ""
     rows = []
     templates = []
+    audits = {
+        result.get("role"): result
+        for result in audit_active_controls(documents)
+    }
     status_labels = {
         "consistent": "Consistent",
         "varied": "Varied",
@@ -1909,14 +1944,24 @@ def controls_section(documents):
     for index, result in enumerate(results):
         role = result.get("role") or "Unknown"
         target = f"controls-role-{index}"
+        audit_target = f"controls-audit-{index}"
+        audit = audits.get(role)
         rows.append([
             role,
             status_labels.get(result.get("status"), "Unknown"),
+            audit.get("pass_count", 0) if audit else 0,
+            audit.get("issue_count", 0) if audit else 0,
             target,
+            audit_target,
         ])
         templates.append(
             f'<template id="{target}">'
             + controls_role_details_html(result)
+            + "</template>"
+        )
+        templates.append(
+            f'<template id="{audit_target}">'
+            + controls_audit_details_html(audit)
             + "</template>"
         )
     return (
@@ -1924,15 +1969,20 @@ def controls_section(documents):
         '<div class="table-wrap"><table><thead><tr>'
         + html_tag("th", "Role")
         + html_tag("th", "Status")
+        + html_tag("th", "Pass")
+        + html_tag("th", "Issues")
         + html_tag("th", "")
         + "</tr></thead><tbody>"
         + "".join(
             "<tr>"
             + html_tag("td", role)
             + html_tag("td", status)
-            + f'<td><button type="button" data-control-target="{target}" data-control-role="{html_cell(role)}">View</button></td>'
+            + html_tag("td", pass_count)
+            + html_tag("td", issue_count)
+            + f'<td><button type="button" data-control-target="{target}" data-control-role="{html_cell(role)}">View</button> '
+            + f'<button type="button" data-audit-target="{audit_target}" data-control-role="{html_cell(role)}">Audit</button></td>'
             + "</tr>"
-            for role, status, target in rows
+            for role, status, pass_count, issue_count, target, audit_target in rows
         )
         + "</tbody></table></div>"
         + "".join(templates)

@@ -525,6 +525,12 @@ This phase answers:
 
 It does not yet judge whether those bindings match the user's preferred convention.
 
+# Phase 4 — Configurable Binding Conventions And Audits
+
+Phase 4 uses `data/binding_rules.yaml` and `src/binding_audit.py` to compare classified active controls against intentionally configured conventions. Rules are keyed by functional role and specify normalized source/binding pairs; optional scope data is preserved for future use but not applied until needed. Audit results use PASS, MISMATCH, MISSING, and NOT_APPLICABLE.
+
+The Account Summary Controls section presents Pass/Issues counts and an Audit view. Expected bindings are not inferred from current data, and no comprehensive role or convention database is attempted.
+
 ## Phase 3 Status
 
 Implemented:

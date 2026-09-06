@@ -369,6 +369,7 @@ rules:
     expected:
       source: key
       binding: ALT-2
+    scope: {}
 ```
 
 The role name must correspond to a functional role from `ability_roles.yaml`.
@@ -391,6 +392,12 @@ means:
 > When an applicable character/spec has an ability classified as `interrupt`, the expected assignment is a key binding of `ALT-2`.
 
 The audit must compare actual normalized assignment identity against the expected normalized assignment identity.
+
+Rule loading validates the schema version, role names, expected source, and non-empty expected binding. The optional `scope` mapping is preserved for future class, specialization, spec-role, or character-specific constraints; it is not applied until a concrete scoped rule is needed.
+
+To add or change a rule, edit `data/binding_rules.yaml` and use a confirmed role from `data/ability_roles.yaml`. Do not derive a convention from current character data.
+
+Audit source values are `key` and `click`, and expected bindings use the same normalized forms as actual presentation data, such as `ALT-2` and `Shift + Left Click`.
 
 ---
 
@@ -460,6 +467,8 @@ MISMATCH
 MISSING
 NOT_APPLICABLE
 ```
+
+`WARNING` is reserved and is not currently emitted.
 
 ## PASS
 

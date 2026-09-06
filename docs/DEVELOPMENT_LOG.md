@@ -108,6 +108,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Added `src/control_analysis.py` for validated role classification and active-document aggregation.
   - Added Account Summary Controls with role consistency status and source-preserving detail modals.
   - Preserved unknown abilities as unclassified and deferred expected bindings, personal rules, and audits to Phase 4.
+- Implemented client-configuration Phase 4 binding audits:
+  - Added evolvable `data/binding_rules.yaml` with no guessed personal conventions.
+  - Added `src/binding_audit.py` for normalized source/binding audits with PASS, MISMATCH, MISSING, and NOT_APPLICABLE statuses.
+  - Added Controls Pass/Issues summaries and per-role Audit modal details.
+  - Kept scope data extensible but unapplied until a concrete scoped rule is needed.
 
 ### WoW Addon
 
@@ -372,7 +377,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 118 tests in 0.756s
+Ran 126 tests in 0.746s
 OK
 ```
 

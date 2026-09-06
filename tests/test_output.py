@@ -1,6 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from src.blizzard.cache import JsonCache
 from src.output import (
@@ -52,6 +53,33 @@ class OutputTests(unittest.TestCase):
         self.assertIn("interrupt", html)
         self.assertIn("Unused", html)
         self.assertIn("No active bindings found for this role.", html)
+
+    def test_controls_section_renders_audit_summary_and_detail_action(self):
+        audit = [{
+            "role": "interrupt",
+            "pass_count": 1,
+            "issue_count": 1,
+            "results": [{
+                "character": "Thaigan",
+                "spec_name": "Enhancement",
+                "ability": "Wind Shear",
+                "binding": "ALT-2",
+                "expected_source": "key",
+                "expected_binding": "ALT-2",
+                "status": "PASS",
+            }],
+        }]
+        with patch("src.output.audit_active_controls", return_value=audit):
+            html = controls_section([])
+
+        self.assertIn("<th>Pass</th>", html)
+        self.assertIn("<th>Issues</th>", html)
+        self.assertIn(">1<", html)
+        self.assertIn('data-audit-target="controls-audit-', html)
+        self.assertIn("Thaigan", html)
+        self.assertIn("Enhancement", html)
+        self.assertIn("Wind Shear", html)
+        self.assertIn("PASS", html)
 
     def test_account_collections_render_mounts_and_battle_pets_without_hunter_data(self):
         with tempfile.TemporaryDirectory() as directory:
