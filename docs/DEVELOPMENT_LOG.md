@@ -53,6 +53,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Added opt-in `hunter_pets` character updates, disabled by default.
   - Enabled the section locally for the active Kurjath roster entry through `characters.yaml`.
   - Reused the existing `section_status` handling for successful and failed hunter-pet requests.
+- Completed Phase 3 Automatic Hunter Detection:
+  - Preserved Blizzard `class_id` and `class_name` in roster configuration during discovery merges.
+  - Automatically enables `hunter_pets` for class ID 3, with class-name fallback only when no ID is present.
+  - Preserved explicit defaults and per-character overrides, active state, and stale-character behavior.
+  - Kept the implementation character-agnostic; no Kurjath-specific Python logic was added.
 
 ### WoW Addon
 
@@ -304,6 +309,7 @@ Test coverage now includes:
 - Blizzard section `status_code` capture.
 - Account collection endpoint routing and discovery failure isolation for mounts and pets.
 - Hunter Pets opt-in configuration, endpoint routing, and section-status preservation.
+- Hunter class metadata merge, automatic class ID 3 detection, non-Hunter behavior, and override preservation.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -312,7 +318,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 72 tests in 0.729s
+Ran 78 tests in 0.694s
 OK
 ```
 

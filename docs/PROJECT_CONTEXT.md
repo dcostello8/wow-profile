@@ -87,7 +87,7 @@ After the account profile is fetched, discovery also retrieves account mount and
 
 Per-section failures are retained in `section_status`. HTTP failures include `status_code`. If the `profile` section returns `403` or `404`, the character is marked inactive in `characters.yaml`.
 
-The optional `hunter_pets` character section is disabled by default and can be enabled with a per-character `update.hunter_pets: true` override. The local Kurjath roster entry uses this override.
+The optional `hunter_pets` character section is disabled by default for non-Hunters. Discovery preserves Blizzard class metadata as `class_id` and `class_name`; Hunter characters are automatically assigned `hunter_pets: true` unless an explicit roster default or per-character override says otherwise. The local Kurjath roster entry remains an explicit override from Phase 2, but no character is hard-coded in Python.
 
 The reusable Blizzard client applies explicit namespaces per service:
 
@@ -171,6 +171,8 @@ Important rules:
 - Characters missing from a successful discovery response are preserved, marked `stale: true`, and forced inactive with `enabled: false`.
 - Rediscovered characters return to `stale: false` through the normal merge path.
 - Stale characters are never selected for profile updates, even if edited back to `enabled: true`.
+- Discovery preserves `class_id` and `class_name` when Blizzard provides class metadata, including across rediscovery responses that omit it.
+- Hunter detection prefers Blizzard class ID `3` and falls back to the class name only when no class ID is available.
 - Generated Blizzard/profile data must not be written into `characters.yaml`.
 
 ## Generated Data
@@ -357,8 +359,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `2ccce3b Started to implement mounts and pets data`.
-- There are uncommitted Phase 2 collections changes adding opt-in Hunter pet updates and the local Kurjath override.
+- Last pushed baseline observed: `48281f4 Implemented phase 2`.
+- There are uncommitted Phase 3 collections changes adding automatic Hunter detection and class metadata preservation.
 
 ## Validation
 
@@ -371,7 +373,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 72 tests
+Ran 78 tests
 OK
 ```
 

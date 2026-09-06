@@ -16,8 +16,13 @@ Extend `wow-profile` to support:
 
 1. Account/Warband mount collection.
 2. Account/Warband companion pet collection.
-3. Hunter stable pets for Hunter characters, initially including `Kurjath-Windrunner`.
-4. Later: owned-vs-missing collection views and Hunter tame wishlists.
+3. Character-specific Hunter stable pets for Hunter characters, initially including `Kurjath-Windrunner`.
+4. Later: owned-vs-missing account collection views and character-specific Hunter tame wishlists.
+
+UI ownership must match data ownership:
+
+- **Mounts and Battle Pets** are account/Warband-wide and belong in the Account Summary `Collections` UI.
+- **Hunter Pets** are character-specific and belong in each Hunter character's own actions/details UI. Do not show Hunter stable data as an account-wide collection.
 
 Use Blizzard APIs. Do **not** modify `WowProfileCollector` SavedVariables for this feature.
 
@@ -242,20 +247,21 @@ Cover:
 
 ---
 
-# Phase 6 — Account Summary UI
+# Phase 6 — Collections And Hunter UI
 
-Add a `Collections` section to the existing Account Summary.
+Keep account-wide and character-specific data separate in the UI.
+
+## Account Summary — Collections
+
+Add a `Collections` section to the existing Account Summary containing only account/Warband collections.
 
 Initial display:
 
 ```text
-Mounts: <owned> collected / <missing> missing
-Battle Pets: <owned> collected / <missing> missing
-Hunter Stable:
-  Kurjath - Windrunner: <count>
+Collections
+  Mounts: <owned> collected / <missing> missing
+  Battle Pets: <owned> collected / <missing> missing
 ```
-
-If multiple active Hunters exist, show each.
 
 Later filters may include:
 
@@ -265,13 +271,47 @@ Later filters may include:
 - source
 - expansion if available
 
-Render gracefully when collection data is absent or partially failed.
+Do **not** show Hunter stable pets in the account-wide `Collections` section.
+
+## Hunter Character UI
+
+Add **Hunter Pets** to the existing `...` actions menu for Hunter characters only.
+
+Requirements:
+
+- Show the menu item only when the character is a Hunter (`class_id == 3`).
+- Label the menu item **Hunter Pets** rather than `Pets` to avoid confusion with account-wide Battle Pets.
+- Clicking **Hunter Pets** opens a character-specific modal using the existing modal/action-menu UI pattern.
+- The modal reads only that character's:
+
+```text
+sections.hunter_pets
+```
+
+Example:
+
+```text
+Kurjath - Windrunner
+  ...
+  Refresh
+  Equipment Sets
+  Professions
+  Hunter Pets
+```
+
+Non-Hunter characters must not show the **Hunter Pets** menu item.
+
+If multiple Hunters are active, each Hunter gets its own independent Hunter Pets menu item and modal. Do not aggregate their stables into an account-wide Hunter collection.
+
+Render gracefully when Hunter pet data is absent, disabled, or failed.
 
 Do not add a new web framework.
 
 ---
 
 # Later — Hunter Wishlist / Farming Planner
+
+Hunter wishlists remain character-specific, just like Hunter stable data.
 
 Blizzard does not provide complete Petopia-style tame/spawn metadata or detailed farming routes.
 
@@ -297,7 +337,7 @@ Implement and validate one phase at a time:
 3. Automatic Hunter detection.
 4. Static catalogs.
 5. Owned/missing calculations.
-6. UI.
+6. Account Collections UI + character-specific Hunter Pets UI.
 7. Wishlist/routes later.
 
 Run after each phase:

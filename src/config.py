@@ -35,6 +35,8 @@ CHARACTERS_FILE = Path("characters.yaml")
 CHARACTER_FIELD_ORDER = [
     "key",
     "name",
+    "class_id",
+    "class_name",
     "enabled",
     "region",
     "id",
@@ -145,6 +147,7 @@ def order_character_fields(character):
 def simplify_character(region, character, existing=None):
     existing = existing or {}
     realm = character.get("realm") or {}
+    playable_class = character.get("playable_class") or character.get("class") or {}
     protected_character = character.get("protected_character") or {}
     key = character_key(region, character)
 
@@ -160,6 +163,13 @@ def simplify_character(region, character, existing=None):
         "realm_slug": realm.get("slug"),
         "stale": False,
     })
+
+    class_id = character.get("class_id", playable_class.get("id"))
+    class_name = character.get("class_name", playable_class.get("name"))
+    if class_id is not None:
+        item["class_id"] = class_id
+    if class_name is not None:
+        item["class_name"] = class_name
 
     if character.get("wow_account_id") is not None:
         item["wow_account_id"] = character["wow_account_id"]
@@ -231,6 +241,16 @@ def enabled_characters(characters):
     ]
 
 
+def is_hunter(character):
+    class_id = character.get("class_id")
+    if class_id is not None:
+        try:
+            return int(class_id) == 3
+        except (TypeError, ValueError):
+            return False
+    return str(character.get("class_name") or "").casefold() == "hunter"
+
+
 def update_settings_for_character(roster, character):
     settings = dict(DEFAULT_UPDATE_SETTINGS)
     defaults = roster.get("defaults") or {}
@@ -249,6 +269,13 @@ def update_settings_for_character(roster, character):
             for key, value in character_update.items()
             if key in UPDATE_SECTIONS
         })
+
+    if (
+        is_hunter(character)
+        and "hunter_pets" not in default_update
+        and "hunter_pets" not in character_update
+    ):
+        settings["hunter_pets"] = True
 
     return settings
 
