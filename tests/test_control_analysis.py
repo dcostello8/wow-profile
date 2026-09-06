@@ -10,6 +10,7 @@ from src.control_analysis import (
     classify_spec_controls,
     load_ability_roles,
 )
+from src.local_wow import normalize_click_binding, normalize_key_binding
 
 
 class ControlAnalysisTests(unittest.TestCase):
@@ -57,6 +58,106 @@ class ControlAnalysisTests(unittest.TestCase):
 
         self.assertEqual({item["role"] for item in assignments}, {"interrupt", "utility"})
         self.assertEqual(assignments[0]["spell_id"], 100)
+
+    def test_actual_role_file_classifies_wind_shear_by_spell_id(self):
+        spec = {
+            "spec_id": 262,
+            "spec_name": "Elemental",
+            "key_bindings": [{
+                "display_keys": ["ALT-2"],
+                "action_type": "spell",
+                "spell_id": 57994,
+                "spell_name": "Wind Shear",
+            }],
+            "click_bindings": [],
+        }
+
+        assignments = classify_spec_controls(spec)
+
+        self.assertEqual(assignments[0]["role"], "interrupt")
+        self.assertEqual(assignments[0]["spell_id"], 57994)
+
+    def test_normalized_direct_spell_keybinding_reaches_role_analysis(self):
+        binding = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {
+                "type": "spell",
+                "id": 57994,
+                "spell": {"id": 57994, "name": "Wind Shear"},
+            },
+        })
+        spec = {"spec_id": 262, "spec_name": "Elemental", "key_bindings": [binding], "click_bindings": []}
+
+        assignments = classify_spec_controls(spec)
+
+        self.assertEqual(assignments[0]["spell_id"], 57994)
+        self.assertEqual(assignments[0]["binding"], "ALT-2")
+
+    def test_normalized_click_cast_reaches_role_analysis(self):
+        binding = normalize_click_binding({
+            "type": "spell",
+            "spell_id": 57994,
+            "spell": {"id": 57994, "name": "Wind Shear"},
+            "button": "LeftButton",
+        })
+        spec = {"spec_id": 262, "spec_name": "Elemental", "key_bindings": [], "click_bindings": [binding]}
+
+        assignments = classify_spec_controls(spec)
+
+        self.assertEqual(assignments[0]["role"], "interrupt")
+        self.assertEqual(assignments[0]["source"], "click")
+
+    def test_missing_spell_id_does_not_classify_from_name(self):
+        binding = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {"type": "spell", "spell": {"name": "Wind Shear"}},
+        })
+        spec = {"spec_id": 262, "spec_name": "Elemental", "key_bindings": [binding], "click_bindings": []}
+
+        assignments = classify_spec_controls(spec)
+
+        self.assertIsNone(assignments[0]["role"])
+
+    def test_resolved_macro_reaches_role_analysis_but_unresolved_macro_does_not(self):
+        resolved = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {
+                "type": "macro",
+                "macro": {"name": "Interrupt Macro", "body": "/cast Wind Shear"},
+                "resolved_spell": {"id": 57994, "name": "Wind Shear"},
+            },
+        })
+        unresolved = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {
+                "type": "macro",
+                "macro": {"name": "Ambiguous", "body": "/cast [mod] A; B"},
+            },
+        })
+        resolved_spec = {"spec_id": 262, "spec_name": "Elemental", "key_bindings": [resolved], "click_bindings": []}
+        unresolved_spec = {"spec_id": 262, "spec_name": "Elemental", "key_bindings": [unresolved], "click_bindings": []}
+
+        self.assertEqual(classify_spec_controls(resolved_spec)[0]["spell_id"], 57994)
+        self.assertIsNone(classify_spec_controls(unresolved_spec)[0]["role"])
+
+    def test_action_bar_spell_without_key_is_preserved_as_unbound(self):
+        spec = {
+            "spec_id": 262,
+            "spec_name": "Elemental",
+            "key_bindings": [],
+            "click_bindings": [],
+            "action_bars": [{
+                "type": "spell",
+                "id": 57994,
+                "spell": {"id": 57994, "name": "Wind Shear"},
+            }],
+        }
+
+        assignments = classify_spec_controls(spec)
+
+        self.assertEqual(assignments[0]["role"], "interrupt")
+        self.assertIsNone(assignments[0]["binding"])
+        self.assertEqual(assignments[0]["source"], "action_bar")
 
     def test_unknown_spell_is_preserved_as_unclassified(self):
         spec = self.spec()

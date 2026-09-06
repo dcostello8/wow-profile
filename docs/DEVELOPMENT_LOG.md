@@ -113,6 +113,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Added `src/binding_audit.py` for normalized source/binding audits with PASS, MISMATCH, MISSING, and NOT_APPLICABLE statuses.
   - Added Controls Pass/Issues summaries and per-role Audit modal details.
   - Kept scope data extensible but unapplied until a concrete scoped rule is needed.
+- Diagnosed the Controls Unused runtime report against live data:
+  - Wind Shear (57994) and Rebuke (96231) IDs survive raw capture and normalization.
+  - The observed action-bar records have no actual key/click assignments, so the prior analysis dropped them.
+  - Preserved them as explicit `action_bar`/unbound diagnostics; Controls now reports Unbound and audits report MISSING without guessing a binding.
+  - Verified the newest SavedVariables import timestamp is present in active generated JSON.
 
 ### WoW Addon
 
@@ -377,7 +382,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 126 tests in 0.746s
+Ran 136 tests in 0.787s
 OK
 ```
 

@@ -1940,6 +1940,7 @@ def controls_section(documents):
         "consistent": "Consistent",
         "varied": "Varied",
         "unused": "Unused",
+      "unbound": "Unbound",
     }
     for index, result in enumerate(results):
         role = result.get("role") or "Unknown"

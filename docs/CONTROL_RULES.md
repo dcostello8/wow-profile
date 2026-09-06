@@ -294,6 +294,8 @@ Additional source values may be added later only if the application starts audit
 
 Do not use arbitrary display strings as source identifiers.
 
+Action-bar-only classified abilities may be preserved with source `action_bar` and no binding. They are useful diagnostics for an ability that exists in the captured action bar but is not actually bound to a key or click. Audits treat that case as `MISSING`; it must not be converted into a guessed key binding.
+
 ---
 
 # Binding Normalization

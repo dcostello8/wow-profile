@@ -50,7 +50,27 @@ def load_ability_roles(path=DEFAULT_ROLE_FILE):
 
 
 def _assignment_rows(spec, role_map):
-    for row in presentation_data(spec)["key_bindings"] + presentation_data(spec)["click_bindings"]:
+    presentation = presentation_data(spec)
+    rows = presentation["key_bindings"] + presentation["click_bindings"]
+    bound_spell_ids = {
+        row.get("spell_id")
+        for row in rows
+        if row.get("spell_id") is not None and row.get("binding")
+    }
+    action_bars = spec.get("action_bars") or (spec.get("client_configuration") or {}).get("action_bars") or []
+    for action in action_bars:
+        if not isinstance(action, dict):
+            continue
+        spell = action.get("spell") if isinstance(action.get("spell"), dict) else {}
+        spell_id = spell.get("id") or action.get("id")
+        if (action.get("type") == "spell" or spell_id) and spell_id not in bound_spell_ids:
+            rows.append({
+                "spell_id": spell_id,
+                "label": spell.get("name") or action.get("text"),
+                "binding": None,
+                "source": "action_bar",
+            })
+    for row in rows:
         spell_id = row.get("spell_id")
         try:
             normalized_spell_id = int(spell_id)
@@ -106,6 +126,10 @@ def analyze_active_controls(documents, role_map=None):
         }
         if not role_assignments:
             status = "unused"
+        elif all(not item.get("binding") for item in role_assignments):
+            status = "unbound"
+        elif any(not item.get("binding") for item in role_assignments):
+            status = "varied"
         elif len(binding_sets) == 1:
             status = "consistent"
         else:

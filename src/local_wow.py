@@ -220,6 +220,7 @@ def normalize_action(action):
 
 def normalize_click_binding(binding):
     spell = binding.get("spell") if isinstance(binding.get("spell"), dict) else {}
+    resolved_spell = binding.get("resolved_spell") if isinstance(binding.get("resolved_spell"), dict) else {}
     modifiers = modifier_list(binding)
     button = binding.get("button")
     return {
@@ -228,6 +229,8 @@ def normalize_click_binding(binding):
         "action_type": binding.get("type"),
         "spell_id": binding.get("spell_id") or spell.get("id"),
         "spell_name": spell.get("name"),
+        "resolved_spell_id": resolved_spell.get("id"),
+        "resolved_spell_name": resolved_spell.get("name"),
         "button": button,
         "modifiers": modifiers,
         "modifier_flags": modifier_flags(modifiers),
@@ -240,6 +243,9 @@ def normalize_key_binding(binding):
     spell = action.get("spell") if isinstance(action.get("spell"), dict) else {}
     item = action.get("item") if isinstance(action.get("item"), dict) else {}
     macro = action.get("macro") if isinstance(action.get("macro"), dict) else {}
+    resolved_spell = action.get("resolved_spell") if isinstance(action.get("resolved_spell"), dict) else {}
+    if not resolved_spell and isinstance(macro.get("resolved_spell"), dict):
+        resolved_spell = macro["resolved_spell"]
     keys = binding.get("keys") or []
     normalized_action = normalize_action(action)
 
@@ -253,6 +259,8 @@ def normalize_key_binding(binding):
         "action_sub_type": action.get("sub_type"),
         "spell_id": spell.get("id") or (action.get("id") if action.get("type") == "spell" else None),
         "spell_name": spell.get("name"),
+        "resolved_spell_id": resolved_spell.get("id"),
+        "resolved_spell_name": resolved_spell.get("name"),
         "item_id": item.get("id") or (action.get("id") if action.get("type") == "item" else None),
         "item_name": item.get("name"),
         "macro_id": macro.get("id") or (action.get("id") if action.get("type") == "macro" else None),

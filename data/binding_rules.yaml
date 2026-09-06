@@ -1,4 +1,8 @@
 version: 1
 
 # Add only intentionally confirmed user conventions here.
-rules: {}
+rules:
+  interrupt:
+    expected:
+      source: key
+      binding: ALT-2

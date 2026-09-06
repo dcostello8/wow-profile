@@ -44,6 +44,29 @@ class BindingAuditTests(unittest.TestCase):
         result = audit_active_controls(self.documents(), self.role_map(), self.rule_map())
         self.assertEqual(result[0]["results"][0]["status"], "PASS")
 
+    def test_seeded_interrupt_rule_passes_alt_two(self):
+        documents = self.documents()
+        documents[0]["local_client_data"]["specs"]["263"]["key_bindings"][0]["spell_id"] = 57994
+        result = audit_active_controls(
+            documents,
+            {57994: {"name": "Wind Shear", "roles": ["interrupt"]}},
+            load_binding_rules(),
+        )
+
+        self.assertEqual(result[0]["role"], "interrupt")
+        self.assertEqual(result[0]["results"][0]["status"], "PASS")
+
+    def test_seeded_interrupt_rule_mismatches_other_binding(self):
+        documents = self.documents(binding="CTRL-2")
+        documents[0]["local_client_data"]["specs"]["263"]["key_bindings"][0]["spell_id"] = 57994
+        result = audit_active_controls(
+            documents,
+            {57994: {"name": "Wind Shear", "roles": ["interrupt"]}},
+            load_binding_rules(),
+        )
+
+        self.assertEqual(result[0]["results"][0]["status"], "MISMATCH")
+
     def test_mismatch(self):
         result = audit_active_controls(self.documents(binding="CTRL-2"), self.role_map(), self.rule_map())
         self.assertEqual(result[0]["results"][0]["status"], "MISMATCH")

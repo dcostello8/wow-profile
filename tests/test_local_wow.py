@@ -85,6 +85,35 @@ class LocalWowTests(unittest.TestCase):
         self.assertEqual(binding["spell_name"], "Healing Surge")
         self.assertEqual(binding["display_keys"], ["ALT-5"])
 
+    def test_macro_with_explicit_resolved_spell_preserves_macro_and_spell_reference(self):
+        binding = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {
+                "type": "macro",
+                "id": 17,
+                "macro": {"id": 17, "name": "Interrupt Macro", "body": "/cast Wind Shear"},
+                "resolved_spell": {"id": 57994, "name": "Wind Shear"},
+            },
+        })
+
+        self.assertEqual(binding["action_type"], "macro")
+        self.assertEqual(binding["macro_name"], "Interrupt Macro")
+        self.assertEqual(binding["resolved_spell_id"], 57994)
+        self.assertEqual(binding["resolved_spell_name"], "Wind Shear")
+
+    def test_ambiguous_macro_without_resolved_spell_stays_unresolved(self):
+        binding = normalize_key_binding({
+            "keys": ["ALT-2"],
+            "action": {
+                "type": "macro",
+                "id": 17,
+                "macro": {"id": 17, "name": "Many Things", "body": "/cast [mod] A; B"},
+            },
+        })
+
+        self.assertIsNone(binding["spell_id"])
+        self.assertIsNone(binding["resolved_spell_id"])
+
     def test_click_binding_normalization_has_structured_modifiers_and_display(self):
         binding = normalize_click_binding({
             "type": "spell",

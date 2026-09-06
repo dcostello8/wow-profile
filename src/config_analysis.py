@@ -28,8 +28,8 @@ def presentation_data(spec):
                 "command": binding.get("command"),
                 "action_bar_slot": binding.get("action_bar_slot"),
                 "action_type": binding.get("action_type"),
-                "spell_id": binding.get("spell_id"),
-                "label": label,
+                "spell_id": binding.get("spell_id") or binding.get("resolved_spell_id"),
+                "label": label or binding.get("resolved_spell_name"),
             })
 
     click_rows = []
@@ -41,7 +41,7 @@ def presentation_data(spec):
             "binding": binding["display_binding"],
             "source": "click",
             "action_type": binding.get("action_type") or binding.get("type"),
-            "spell_id": binding.get("spell_id"),
+            "spell_id": binding.get("spell_id") or binding.get("resolved_spell_id"),
             "label": label,
         })
 

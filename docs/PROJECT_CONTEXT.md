@@ -137,6 +137,8 @@ Client-configuration Phase 3 adds curated functional roles from `data/ability_ro
 
 Client-configuration Phase 4 adds the optional `data/binding_rules.yaml` convention schema and `src/binding_audit.py`. The Controls section exposes Pass/Issues counts and an Audit view using Python-authoritative PASS, MISMATCH, MISSING, and NOT_APPLICABLE results. No user convention is seeded unless intentionally confirmed.
 
+Runtime diagnostic note: the current live capture preserves Wind Shear/Rebuke spell IDs in action-bar records, but the observed records have empty key lists and no click bindings. Controls therefore reports these classified abilities as Unbound and audits them as MISSING rather than inventing ALT-2. The update workflow already imports the newest SavedVariables before refresh, and generated JSON shows the current import timestamp.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -393,7 +395,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 126 tests
+Ran 136 tests
 OK
 ```
 

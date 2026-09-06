@@ -531,6 +531,8 @@ Phase 4 uses `data/binding_rules.yaml` and `src/binding_audit.py` to compare cla
 
 The Account Summary Controls section presents Pass/Issues counts and an Audit view. Expected bindings are not inferred from current data, and no comprehensive role or convention database is attempted.
 
+Action-bar-only abilities with a valid spell ID but no key/click assignment are retained as unbound diagnostics. They appear as `Unbound` in Controls and `MISSING` in audits; the implementation does not infer a binding from an action-bar slot.
+
 ## Phase 3 Status
 
 Implemented:
