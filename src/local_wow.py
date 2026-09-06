@@ -270,6 +270,14 @@ def normalize_key_binding(binding):
     }
 
 
+def dominos_action_bar_slot(command):
+    match = re.match(r"^CLICK\s+DominosActionButton(\d+):", str(command or ""))
+    if not match:
+        return None
+    slot = int(match.group(1))
+    return slot if 1 <= slot <= 180 else None
+
+
 def normalize_macro(macro):
     if not isinstance(macro, dict):
         return None
@@ -286,21 +294,30 @@ def normalize_action_bar(action):
 
 
 def normalize_spec_capture(capture):
-    click_bindings = [
-        normalize_click_binding(binding)
-        for binding in capture.get("click_bindings", [])
-        if isinstance(binding, dict)
-    ]
-    key_bindings = [
-        normalize_key_binding(binding)
-        for binding in capture.get("key_bindings", [])
-        if isinstance(binding, dict)
-    ]
     action_bars = [
         normalize_action_bar(action)
         for action in capture.get("action_bars", [])
         if isinstance(action, dict)
     ]
+    actions_by_slot = {
+        action.get("slot"): action
+        for action in action_bars
+        if action and action.get("slot") is not None
+    }
+    click_bindings = [
+        normalize_click_binding(binding)
+        for binding in capture.get("click_bindings", [])
+        if isinstance(binding, dict)
+    ]
+    key_bindings = []
+    for binding in capture.get("key_bindings", []):
+        if not isinstance(binding, dict):
+            continue
+        action_slot = dominos_action_bar_slot(binding.get("command"))
+        action = actions_by_slot.get(action_slot)
+        if action and not isinstance(binding.get("action"), dict):
+            binding = {**binding, "action_bar_slot": action_slot, "action": action}
+        key_bindings.append(normalize_key_binding(binding))
     macros = [
         normalize_macro(macro)
         for macro in capture.get("macros", [])

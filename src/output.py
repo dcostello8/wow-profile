@@ -1702,14 +1702,55 @@ def bindings_details_html(document):
     )
 
 
-def binding_assignment_display(assignment):
+def binding_assignment_display(assignment, include_source=True):
     if not assignment:
         return "—"
     source = str(assignment.get("source") or "").title()
     binding = str(assignment.get("binding") or "")
     parts = binding.split(" + ")
     binding = " + ".join(binding_display_mouse_name(part) for part in parts)
-    return f"{source}: {binding}" if source else binding
+    return f"{source}: {binding}" if include_source and source else binding
+
+
+def comparison_status(bindings_by_spec, spec_ids):
+    assignment_sets = [
+        {item.get("binding") for item in bindings_by_spec.get(str(spec_id), [])}
+        for spec_id in spec_ids
+    ]
+    if any(not assignments for assignments in assignment_sets):
+        return "Missing"
+    if any(assignments != assignment_sets[0] for assignments in assignment_sets[1:]):
+        return "Changed"
+    return "Match"
+
+
+def comparison_source_rows(comparison, source):
+    spec_ids = comparison.get("spec_ids") or []
+    rows = []
+    for ability in comparison.get("abilities") or []:
+        all_bindings = ability.get("bindings_by_spec") or {}
+        bindings_by_spec = {
+            str(spec_id): [
+                assignment
+                for assignment in all_bindings.get(str(spec_id)) or []
+                if assignment.get("source") == source
+            ]
+            for spec_id in spec_ids
+        }
+        if not any(bindings_by_spec.values()):
+            continue
+        rows.append([
+            ability.get("name") or ability.get("spell_id"),
+            *[
+                " / ".join(
+                    binding_assignment_display(assignment, include_source=False)
+                    for assignment in bindings_by_spec[str(spec_id)]
+                ) or "—"
+                for spec_id in spec_ids
+            ],
+            comparison_status(bindings_by_spec, spec_ids),
+        ])
+    return rows
 
 
 def bindings_comparison_panel_html(comparison, specs):
@@ -1717,28 +1758,28 @@ def bindings_comparison_panel_html(comparison, specs):
         str(spec_id): spec.get("spec_name") or str(spec_id)
         for spec_id, spec in specs
     }
-    rows = []
-    for ability in comparison.get("abilities") or []:
-        bindings_by_spec = ability.get("bindings_by_spec") or {}
-        rows.append([
-            ability.get("name") or ability.get("spell_id"),
-            *[
-                " / ".join(binding_assignment_display(item) for item in bindings_by_spec.get(str(spec_id)) or [])
-                or "—"
-                for spec_id in comparison.get("spec_ids") or []
-            ],
-            {
-                "exact_match": "Match",
-                "changed": "Changed",
-                "missing": "Missing",
-            }.get(ability.get("status"), ability.get("status") or "Unknown"),
-        ])
-    if not rows:
+    spec_ids = comparison.get("spec_ids") or []
+    headers = ["Ability", *[spec_names.get(str(spec_id), str(spec_id)) for spec_id in spec_ids], "Status"]
+    key_rows = comparison_source_rows(comparison, "key")
+    click_rows = comparison_source_rows(comparison, "click")
+    if not key_rows and not click_rows:
         return '<section class="binding-spec-panel" data-binding-view-panel="comparison" hidden><div class="detail-empty">No comparable shared bindings found.</div></section>'
-    headers = ["Ability", *[spec_names.get(str(spec_id), str(spec_id)) for spec_id in comparison.get("spec_ids") or []], "Status"]
+    key_section = (
+        table(headers, key_rows)
+        if key_rows
+        else '<div class="detail-empty">No comparable shared keybindings found.</div>'
+    )
+    click_section = (
+        table(headers, click_rows)
+        if click_rows
+        else '<div class="detail-empty">No comparable shared click-cast bindings found.</div>'
+    )
     return (
         '<section class="binding-spec-panel" data-binding-view-panel="comparison" hidden>'
-        + table(headers, rows)
+        '<div class="detail-title">Keybindings</div>'
+        + key_section
+        + '<div class="detail-title detail-title-spaced">Click Casts</div>'
+        + click_section
         + "</section>"
     )
 

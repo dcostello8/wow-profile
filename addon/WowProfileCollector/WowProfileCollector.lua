@@ -66,6 +66,14 @@ local function ModifiersFromMask(mask)
 end
 
 local function ActionSlotForCommand(command)
+    local dominosSlot = command:match("^CLICK DominosActionButton(%d+):")
+    if dominosSlot then
+        dominosSlot = tonumber(dominosSlot)
+        if dominosSlot and dominosSlot >= 1 and dominosSlot <= 180 then
+            return dominosSlot
+        end
+    end
+
     for prefix, info in pairs(ACTION_BAR_BINDINGS) do
         local index = command:match("^" .. prefix .. "(%d+)$")
         if index then

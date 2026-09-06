@@ -503,8 +503,13 @@ class OutputTests(unittest.TestCase):
         self.assertIn("Match", template)
         self.assertIn("Changed", template)
         self.assertIn("Missing", template)
-        self.assertIn("Key: ALT-2", template)
-        self.assertIn("Click: Shift + Left Click", template)
+        comparison = template.split('data-binding-view-panel="comparison"', 1)[1]
+        self.assertIn('<div class="detail-title">Keybindings</div>', comparison)
+        self.assertIn('<div class="detail-title detail-title-spaced">Click Casts</div>', comparison)
+        self.assertIn("ALT-2", comparison)
+        self.assertIn("Shift + Left Click", comparison)
+        self.assertNotIn("Key: ALT-2", comparison)
+        self.assertNotIn("Click: Shift + Left Click", comparison)
 
     def test_bindings_compare_specs_empty_state_is_graceful(self):
         document = {

@@ -85,6 +85,31 @@ class LocalWowTests(unittest.TestCase):
         self.assertEqual(binding["spell_name"], "Healing Surge")
         self.assertEqual(binding["display_keys"], ["ALT-5"])
 
+    def test_dominos_hotkey_is_resolved_against_its_action_bar_slot(self):
+        character = normalized_characters({
+            "characters": {"Windrunner": {"Aituru": {
+                "262": {
+                    "spec_id": 262,
+                    "spec_name": "Elemental",
+                    "key_bindings": [{
+                        "command": "CLICK DominosActionButton14:HOTKEY",
+                        "keys": ["ALT-2"],
+                    }],
+                    "action_bars": [{
+                        "slot": 14,
+                        "type": "spell",
+                        "id": 57994,
+                        "spell": {"id": 57994, "name": "Wind Shear"},
+                    }],
+                },
+            }}},
+        })[0]
+
+        binding = character["specs"]["262"]["key_bindings"][0]
+        self.assertEqual(binding["action_bar_slot"], 14)
+        self.assertEqual(binding["spell_id"], 57994)
+        self.assertEqual(binding["spell_name"], "Wind Shear")
+
     def test_macro_with_explicit_resolved_spell_preserves_macro_and_spell_reference(self):
         binding = normalize_key_binding({
             "keys": ["ALT-2"],
