@@ -7,6 +7,10 @@ from pathlib import Path
 
 import requests
 
+from .blizzard.cache import JsonCache
+from .blizzard.client import BlizzardClient
+from .blizzard.game_data.mounts import MountService
+from .blizzard.game_data.pets import PetService
 from .blizzard_api import (
     error_summary,
     fetch_account_profile,
@@ -108,6 +112,7 @@ def update():
         return 0
 
     access_token = get_client_credentials_token(config, hosts)
+    ensure_collection_catalogs(config, hosts, access_token)
     retrieved_at = datetime.now(timezone.utc).isoformat()
     index = {
         "generated_at": retrieved_at,
@@ -239,6 +244,23 @@ def update():
     if deactivated_count:
         print(f"Set {deactivated_count} characters inactive because their public profiles are unavailable.")
     return 0 if failure_count == 0 else 1
+
+
+def ensure_collection_catalogs(config, hosts, access_token, cache=None):
+    cache = cache or JsonCache()
+    results = {}
+    for key, service_class, method_name in (
+        ("mounts", MountService, "get_index"),
+        ("pets", PetService, "get_index"),
+    ):
+        try:
+            client = BlizzardClient(config, access_token, hosts=hosts)
+            getattr(service_class(client, cache), method_name)()
+            results[key] = {"status": "updated"}
+        except Exception as exc:
+            results[key] = {"status": "failed", "error": str(exc)}
+            print(f"Could not refresh {key} catalog: {exc}", file=sys.stderr)
+    return results
 
 
 def public_profile_unavailable(section_status):

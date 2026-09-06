@@ -123,6 +123,12 @@ Phase 5 adds `src/collections.py` for normalization and owned-vs-missing calcula
 
 Phase 6 adds Account Summary presentation for account-wide Mounts and Battle Pets using the Phase 5 calculations. Each collection has collected/missing counts and a view modal. Hunter Pets remain character-specific: only active rows with roster `class_id == 3` receive a **Hunter Pets** action, and each action opens an independent modal reading only that character's `sections.hunter_pets`. Missing, stale, partial, and failed data render as unavailable/empty states. Hunter stable data is not included in account-wide Collections.
 
+The live `update` workflow now ensures the mount and companion-pet catalog indexes are populated through the client-credentials Game Data services before profile updates refresh the Account Summary. Existing cached indexes are reused, and failures are reported without aborting character profile updates. The `summary` command remains local-only and does not fetch catalogs.
+
+Collection detail modals intentionally expose only user-facing state and names: Mounts show `State` and `Mount`, while Battle Pets show `State` and `Battle Pet`. Blizzard IDs and faction values remain in normalized collection data for matching and future filtering, but are not rendered in the current UI.
+
+Hunter Pets modals consume the Character Profile API's `sections.hunter_pets.hunter_pets` list and display a `<count> / 210 pets` summary plus Name, Creature, Level, and Status. The 210 capacity is five normal callable slots plus 205 stable storage slots; the Beast Mastery Animal Companion slot is separate and is not inferred. Pets are sorted by Blizzard `slot` on a copied list, while raw slot values remain unchanged. Status maps Blizzard `is_active: true` to `Active` and `false` to `Stabled`. Creature IDs, slot values, and the obsolete Family field are not rendered; absent and failed responses continue to use the existing empty/error states.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -365,8 +371,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `7c07351 Phase 5 implemented`.
-- There are uncommitted Phase 6 collections UI changes for Account Summary and Hunter character modals.
+- Last pushed baseline observed: `55f71bb Phase 6 implemented`.
+- There are uncommitted catalog-cache integration changes for the live update workflow.
 
 ## Validation
 
@@ -379,7 +385,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 93 tests
+Ran 101 tests
 OK
 ```
 

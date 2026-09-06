@@ -48,6 +48,12 @@ class OutputTests(unittest.TestCase):
         self.assertIn("1 collected / 1 missing", html)
         self.assertIn('data-collection-target="collection-mounts"', html)
         self.assertIn('data-collection-target="collection-pets"', html)
+        self.assertIn("<th>State</th><th>Mount</th>", html)
+        self.assertIn("<th>State</th><th>Battle Pet</th>", html)
+        self.assertNotIn("<th>ID</th>", html)
+        self.assertNotIn("<th>Faction</th>", html)
+        self.assertNotIn("<td>1</td>", html)
+        self.assertNotIn("<td>10</td>", html)
         self.assertNotIn("Hunter Pets", html)
         self.assertNotIn("Hunter Stable", html)
 
@@ -243,19 +249,78 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("15/15", html)
 
     def test_hunter_character_shows_hunter_pets_menu_and_modal_data(self):
-        html = enabled_characters_table([{
+        document = {
             "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
             "sections": {
                 "profile": {"character_class": {"name": "Hunter"}},
-                "hunter_pets": {"pets": [{"name": "Wolf", "id": 100, "level": 80}]},
+                "hunter_pets": {
+                    "hunter_pets": [{
+                        "name": "Example",
+                        "level": 90,
+                        "creature": {"name": "Example Beast", "id": 12345},
+                        "slot": 0,
+                        "is_active": True,
+                        "creature_display": {"key": {"href": "https://example.test"}},
+                    }]
+                },
             },
             "section_status": {"hunter_pets": {"status": "updated"}},
-        }])
+        }
+        html = enabled_characters_table([document])
 
         self.assertIn(">Hunter Pets</button>", html)
         self.assertIn('data-hunter-pets-target="hunter-pets-0"', html)
         self.assertIn('<template id="hunter-pets-0">', html)
-        self.assertIn("Wolf", html)
+        self.assertIn("Example", html)
+        self.assertIn("Example Beast", html)
+        self.assertIn("90", html)
+        self.assertIn(">Active<", html)
+        self.assertIn("<th>Name</th>", html)
+        self.assertIn("<th>Creature</th>", html)
+        self.assertIn("<th>Level</th>", html)
+        self.assertIn("<th>Status</th>", html)
+        self.assertNotIn("<th>Slot</th>", html)
+        self.assertNotIn("<th>Family</th>", html)
+        self.assertNotIn("12345", html)
+        self.assertEqual(
+            document["sections"]["hunter_pets"]["hunter_pets"][0]["slot"],
+            0,
+        )
+        self.assertTrue(
+            document["sections"]["hunter_pets"]["hunter_pets"][0]["is_active"]
+        )
+
+    def test_hunter_pets_modal_shows_capacity_and_sorts_by_hidden_slot(self):
+        pets = [
+            {
+                "name": f"Pet {slot}",
+                "level": 90,
+                "creature": {"name": f"Creature {slot}", "id": 1000 + slot},
+                "slot": slot,
+                "is_active": slot < 5,
+            }
+            for slot in (6, 2, 5, 0, 4, 1, 3)
+        ]
+        document = {
+            "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
+            "sections": {"hunter_pets": {"hunter_pets": pets}},
+            "section_status": {"hunter_pets": {"status": "updated"}},
+        }
+
+        html = enabled_characters_table([document])
+        template = html.split('<template id="hunter-pets-0">', 1)[1].split("</template>", 1)[0]
+
+        self.assertIn("7 / 210 pets", template)
+        self.assertNotIn("<th>Slot</th>", template)
+        self.assertEqual(
+            [template.index(f"Pet {slot}") for slot in range(7)],
+            sorted(template.index(f"Pet {slot}") for slot in range(7)),
+        )
+        self.assertNotIn(">6<", template)
+        self.assertIn("Active", template)
+        self.assertIn("Stabled", template)
+        self.assertEqual([pet["slot"] for pet in pets], [6, 2, 5, 0, 4, 1, 3])
+        self.assertEqual([pet["is_active"] for pet in pets], [False, True, False, True, True, True, True])
 
     def test_non_hunter_does_not_show_hunter_pets_menu(self):
         html = enabled_characters_table([{
@@ -304,6 +369,39 @@ class OutputTests(unittest.TestCase):
         self.assertIn(">Hunter Pets</button>", html)
         self.assertIn("Hunter pet data unavailable", html)
         self.assertIn("profile unavailable", html)
+
+    def test_stabled_hunter_pet_renders_status_without_modifying_source_data(self):
+        pet = {
+            "name": "Hati",
+            "level": 120,
+            "creature": {"name": "Hati", "id": 999},
+            "slot": 2,
+            "is_active": False,
+        }
+        document = {
+            "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
+            "sections": {"hunter_pets": {"hunter_pets": [pet]}},
+            "section_status": {"hunter_pets": {"status": "updated"}},
+        }
+
+        html = enabled_characters_table([document])
+
+        self.assertIn(">Stabled<", html)
+        self.assertNotIn(">2<", html)
+        self.assertNotIn("<th>Slot</th>", html)
+        self.assertEqual(pet["slot"], 2)
+        self.assertFalse(pet["is_active"])
+
+    def test_empty_hunter_pets_list_renders_empty_state(self):
+        html = enabled_characters_table([{
+            "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
+            "sections": {"hunter_pets": {"hunter_pets": []}},
+            "section_status": {"hunter_pets": {"status": "updated"}},
+        }])
+
+        self.assertIn("0 / 210 pets", html)
+        self.assertIn("No Hunter pet data captured.", html)
+        self.assertNotIn("<th>Family</th>", html)
 
     def test_profession_coverage_rolls_up_by_realm(self):
         documents = [

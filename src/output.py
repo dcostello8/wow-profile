@@ -1470,13 +1470,31 @@ def hunter_pets_details_html(document):
             + "</div>"
         )
     records = hunter_pet_records(data)
+    count = len(records)
+    summary = f'<div class="detail-title">{count} / 210 pets</div>'
     if not records:
-        return '<div class="detail-empty">No Hunter pet data captured.</div>'
-    return table(["Pet", "ID", "Level", "Family"], [hunter_pet_row(record) for record in records])
+        return summary + '<div class="detail-empty">No Hunter pet data captured.</div>'
+    records = sorted(records, key=hunter_pet_slot_key)
+    return summary + table(
+        ["Name", "Creature", "Level", "Status"],
+        [hunter_pet_row(record) for record in records],
+    )
+
+
+def hunter_pet_slot_key(record):
+    slot = record.get("slot")
+    try:
+        return (0, int(slot))
+    except (TypeError, ValueError):
+        return (1, str(slot or ""))
 
 
 def hunter_pet_records(data):
-    records = data.get("pets") if isinstance(data, dict) else data
+    if not isinstance(data, dict):
+        return []
+    records = data.get("hunter_pets")
+    if records is None:
+        records = data.get("pets")
     if not isinstance(records, list):
         return []
     return [record for record in records if isinstance(record, dict)]
@@ -1486,13 +1504,11 @@ def hunter_pet_row(record):
     creature = record.get("creature") or record.get("pet") or {}
     if not isinstance(creature, dict):
         creature = {}
-    family = record.get("family")
-    family_name = family.get("name") if isinstance(family, dict) else family
     return [
-        record.get("name") or creature.get("name"),
-        record.get("id") or creature.get("id"),
-        record.get("level"),
-        family_name,
+      record.get("name"),
+      creature.get("name"),
+      record.get("level"),
+      "Active" if record.get("is_active") else "Stabled",
     ]
 
 
@@ -1533,7 +1549,7 @@ def account_collection_results(account_collections, cache=None):
     }
 
 
-def collection_details_html(result):
+def collection_details_html(result, item_label):
     if result.get("status") != "updated":
         return '<div class="detail-empty">' + html_cell(
             result.get("error") or "Collection data unavailable."
@@ -1541,17 +1557,20 @@ def collection_details_html(result):
     rows = []
     for state, records in (("Collected", result.get("owned")), ("Missing", result.get("missing"))):
         for record in records or []:
-            rows.append([state, record.get("name"), record.get("id"), record.get("faction")])
+            rows.append([state, record.get("name")])
     if not rows:
         return '<div class="detail-empty">No collection records available.</div>'
-    return table(["State", "Name", "ID", "Faction"], rows)
+    return table(["State", item_label], rows)
 
 
 def account_collections_section(account_collections, cache=None):
     results = account_collection_results(account_collections, cache)
     rows = []
     templates = []
-    for key, label in (("mounts", "Mounts"), ("pets", "Battle Pets")):
+    for key, label, item_label in (
+      ("mounts", "Mounts", "Mount"),
+      ("pets", "Battle Pets", "Battle Pet"),
+    ):
         result = results[key]
         if result.get("status") == "updated":
             summary = f"{len(result.get('owned') or [])} collected / {len(result.get('missing') or [])} missing"
@@ -1559,7 +1578,11 @@ def account_collections_section(account_collections, cache=None):
             summary = result.get("status", "Unavailable").capitalize()
         target = f"collection-{key}"
         rows.append((label, summary, target))
-        templates.append(f'<template id="{target}">' + collection_details_html(result) + "</template>")
+        templates.append(
+          f'<template id="{target}">'
+          + collection_details_html(result, item_label)
+          + "</template>"
+        )
     return (
         "<h2>Collections</h2>"
         '<div class="table-wrap"><table><thead><tr>'

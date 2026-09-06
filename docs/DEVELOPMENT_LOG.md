@@ -75,6 +75,24 @@ Updating [3/13] Thaigan - Windrunner...
   - Added Hunter Pets actions and independent character-specific modals only for roster `class_id == 3` rows.
   - Rendered absent, stale, partial, and failed account or Hunter data safely.
   - Kept Hunter stable data out of account-wide Collections and did not add wishlist or farming-route metadata.
+- Fixed the Phase 6 catalog integration gap:
+  - Live `update` now warms the mount and Battle Pet catalog indexes through `MountService` and `PetService` using client credentials.
+  - Existing cached indexes are reused through `JsonCache`.
+  - Mount and pet catalog failures are isolated and do not fail character profile updates.
+  - Local-only `summary` behavior remains unchanged.
+- Applied a small Phase 6 modal cleanup:
+  - Mount details now render only State and Mount.
+  - Battle Pet details now render only State and Battle Pet.
+  - Internal IDs and faction data remain available to collection matching and future planning but are hidden from the UI.
+- Fixed Hunter Pets modal response handling:
+  - Reads the Blizzard Character Profile API `hunter_pets` list instead of treating valid responses as empty `pets` data.
+  - Displays Name, Creature, Level, Slot, and Active without creature IDs or the unsupported Family column.
+  - Preserves character-specific Hunter behavior and graceful empty/failed states.
+- Applied a small Hunter Pets modal cleanup:
+  - Removed the visible Slot column.
+  - Replaced Active Yes/No with a Status column using Active/Stabled labels.
+  - Kept Blizzard `slot` and `is_active` values unchanged in the underlying response data.
+- Enhanced the Hunter Pets modal with a `count / 210 pets` capacity summary and ascending Blizzard slot ordering. Slot remains hidden and the Beast Mastery Animal Companion slot is not inferred or counted.
 
 ### WoW Addon
 
@@ -330,6 +348,7 @@ Test coverage now includes:
 - Mount/pet catalog endpoint routing, static namespace handling, and detail cache reuse.
 - Owned mount/pet matching, missing calculations, faction filtering, and unknown-value preservation.
 - Account Collections rendering, account/Hunter modal separation, Hunter-only actions, and failure-state handling.
+- Catalog cache population, cache reuse, refresh failure isolation, and refresh-to-summary integration.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -338,7 +357,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 93 tests in 0.767s
+Ran 101 tests in 0.744s
 OK
 ```
 
