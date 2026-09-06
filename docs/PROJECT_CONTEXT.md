@@ -117,6 +117,8 @@ Designed but not enabled by default: achievements, achievement statistics, appea
 
 Implemented Game Data service methods cover playable classes, talents, PvP talents, talent trees, spells, items, professions/recipes, Mythic+ dungeons/periods/seasons/affixes, journal expansions/instances/encounters, realms, connected realms, and regions.
 
+Phase 4 adds cached Game Data services for mount and companion-pet catalogs. `MountService` supports `/data/wow/mount/index` and `/data/wow/mount/{id}`; `PetService` supports `/data/wow/pet/index` and `/data/wow/pet/{id}`. They use the existing `static-{region}` namespace and `output/cache/blizzard/` cache through `GameDataService`. Collection comparison logic and UI remain separate future phases.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -359,8 +361,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `48281f4 Implemented phase 2`.
-- There are uncommitted Phase 3 collections changes adding automatic Hunter detection and class metadata preservation.
+- Last pushed baseline observed: `da471fe Phase 3 implemented`.
+- There are uncommitted Phase 4 collections changes adding cached mount and pet Game Data services.
 
 ## Validation
 
@@ -373,7 +375,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 78 tests
+Ran 81 tests
 OK
 ```
 

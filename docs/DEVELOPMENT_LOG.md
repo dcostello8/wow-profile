@@ -58,6 +58,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Automatically enables `hunter_pets` for class ID 3, with class-name fallback only when no ID is present.
   - Preserved explicit defaults and per-character overrides, active state, and stale-character behavior.
   - Kept the implementation character-agnostic; no Kurjath-specific Python logic was added.
+- Completed Phase 4 Full Mount/Pet Catalog services:
+  - Added cached `MountService` and `PetService` Game Data API modules.
+  - Added index/detail routing for mounts and companion pets using the static region namespace.
+  - Reused the existing Blizzard JSON cache so repeated detail lookups do not refetch.
+  - Kept catalog transport separate from owned/missing comparison and UI work.
 
 ### WoW Addon
 
@@ -310,6 +315,7 @@ Test coverage now includes:
 - Account collection endpoint routing and discovery failure isolation for mounts and pets.
 - Hunter Pets opt-in configuration, endpoint routing, and section-status preservation.
 - Hunter class metadata merge, automatic class ID 3 detection, non-Hunter behavior, and override preservation.
+- Mount/pet catalog endpoint routing, static namespace handling, and detail cache reuse.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -318,7 +324,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 78 tests in 0.694s
+Ran 81 tests in 0.703s
 OK
 ```
 

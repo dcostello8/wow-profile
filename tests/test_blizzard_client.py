@@ -8,6 +8,8 @@ from src.blizzard.game_data.classes import ClassService
 from src.blizzard.game_data.items import ItemService
 from src.blizzard.game_data.journal import JournalService
 from src.blizzard.game_data.mythic_plus import MythicPlusService
+from src.blizzard.game_data.mounts import MountService
+from src.blizzard.game_data.pets import PetService
 from src.blizzard.game_data.professions import ProfessionService
 from src.blizzard.game_data.realms import RealmService
 from src.blizzard.game_data.spells import SpellService
@@ -163,6 +165,60 @@ class BlizzardClientTests(unittest.TestCase):
         self.assertIn("https://us.api.blizzard.test/data/wow/spell/8004", urls)
         self.assertIn("https://us.api.blizzard.test/data/wow/item/19019", urls)
         self.assertIn("https://us.api.blizzard.test/data/wow/recipe/12345", urls)
+
+    def test_mount_service_routes_index_and_detail_endpoints(self):
+        client, session = self.client()
+        with tempfile.TemporaryDirectory() as directory:
+            service = MountService(client, JsonCache(Path(directory)))
+            service.get_index()
+            service.get_mount(123)
+
+        self.assert_urls(session, [
+            "/data/wow/mount/index",
+            "/data/wow/mount/123",
+        ])
+        self.assertEqual(
+            [call["params"]["namespace"] for call in session.calls],
+            ["static-us", "static-us"],
+        )
+
+    def test_pet_service_routes_index_and_detail_endpoints(self):
+        client, session = self.client()
+        with tempfile.TemporaryDirectory() as directory:
+            service = PetService(client, JsonCache(Path(directory)))
+            service.get_index()
+            service.get_pet(456)
+
+        self.assert_urls(session, [
+            "/data/wow/pet/index",
+            "/data/wow/pet/456",
+        ])
+        self.assertEqual(
+            [call["params"]["namespace"] for call in session.calls],
+            ["static-us", "static-us"],
+        )
+
+    def test_mount_and_pet_detail_lookups_reuse_cache(self):
+        client, session = self.client()
+        with tempfile.TemporaryDirectory() as directory:
+            cache = JsonCache(Path(directory))
+            mounts = MountService(client, cache)
+            pets = PetService(client, cache)
+
+            first_mount = mounts.get_mount(123)
+            second_mount = mounts.get_mount(123)
+            first_pet = pets.get_pet(456)
+            second_pet = pets.get_pet(456)
+
+        self.assertEqual(first_mount, second_mount)
+        self.assertEqual(first_pet, second_pet)
+        self.assertEqual(
+            [call["url"] for call in session.calls],
+            [
+                "https://us.api.blizzard.test/data/wow/mount/123",
+                "https://us.api.blizzard.test/data/wow/pet/456",
+            ],
+        )
 
     def test_class_service_routes_supported_endpoints(self):
         client, session = self.client()
