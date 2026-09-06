@@ -75,6 +75,76 @@ class ConfigAnalysisTests(unittest.TestCase):
         self.assertEqual(result["spec_ids"], ["262", "264"])
         self.assertEqual(result["abilities"][0]["status"], "exact_match")
 
+    def test_compare_specs_identifies_missing_assignment(self):
+        specs = {
+            "262": spec(262, "Elemental", "ALT-2", 57994, "Wind Shear"),
+            "264": {"spec_id": 264, "spec_name": "Restoration", "key_bindings": [], "click_bindings": []},
+        }
+
+        result = compare_specs(specs)
+
+        self.assertEqual(result["abilities"][0]["status"], "missing")
+
+    def test_compare_specs_identifies_identical_multiple_assignments(self):
+        specs = {
+            "262": spec(262, "Elemental", "1", 57994, "Wind Shear"),
+            "264": spec(264, "Restoration", "1", 57994, "Wind Shear"),
+        }
+        for current_spec in specs.values():
+            current_spec["key_bindings"].append({
+                "display_keys": ["ALT-1"],
+                "action_type": "spell",
+                "spell_id": 57994,
+                "spell_name": "Wind Shear",
+            })
+
+        result = compare_specs(specs)
+
+        self.assertEqual(result["abilities"][0]["status"], "exact_match")
+
+    def test_compare_specs_distinguishes_same_binding_text_by_source(self):
+        specs = {
+            "262": spec(262, "Elemental", "ALT-2", 57994, "Wind Shear"),
+            "264": {
+                "spec_id": 264,
+                "spec_name": "Restoration",
+                "key_bindings": [],
+                "click_bindings": [{
+                    "display_binding": "ALT-2",
+                    "action_type": "spell",
+                    "spell_id": 57994,
+                    "spell_name": "Wind Shear",
+                }],
+            },
+        }
+
+        result = compare_specs(specs)
+
+        self.assertEqual(result["abilities"][0]["status"], "changed")
+
+    def test_compare_specs_supports_multiple_key_and_click_assignments(self):
+        specs = {
+            "262": spec(262, "Elemental", "1", 57994, "Wind Shear"),
+            "264": spec(264, "Restoration", "1", 57994, "Wind Shear"),
+        }
+        for current_spec in specs.values():
+            current_spec["key_bindings"].append({
+                "display_keys": ["ALT-1"],
+                "action_type": "spell",
+                "spell_id": 57994,
+                "spell_name": "Wind Shear",
+            })
+            current_spec["click_bindings"].append({
+                "display_binding": "Shift + Left Click",
+                "action_type": "spell",
+                "spell_id": 57994,
+                "spell_name": "Wind Shear",
+            })
+
+        result = compare_specs(specs)
+
+        self.assertEqual(result["abilities"][0]["status"], "exact_match")
+
 
 if __name__ == "__main__":
     unittest.main()

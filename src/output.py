@@ -817,13 +817,13 @@ def html_page(title, generated_at, sections):
   }}
 
   function bindBindingsTabs(root) {{
-    const tabs = root.querySelectorAll("[data-binding-spec-target]");
-    const panels = root.querySelectorAll("[data-binding-spec-panel]");
+    const tabs = root.querySelectorAll("[data-binding-view-target]");
+    const panels = root.querySelectorAll("[data-binding-view-panel]");
     for (const tab of tabs) {{
       tab.addEventListener("click", () => {{
-        const target = tab.dataset.bindingSpecTarget;
+        const target = tab.dataset.bindingViewTarget;
         for (const otherTab of tabs) otherTab.classList.toggle("active", otherTab === tab);
-        for (const panel of panels) panel.hidden = panel.dataset.bindingSpecPanel !== target;
+        for (const panel of panels) panel.hidden = panel.dataset.bindingViewPanel !== target;
       }});
     }}
   }}
@@ -1615,7 +1615,7 @@ def bindings_spec_panel_html(spec_id, spec, index, active):
     captured = local_time(spec.get("captured_at")) or "Not available"
     return (
         f'<section id="{panel_id}" class="binding-spec-panel" '
-        f'data-binding-spec-panel="{index}" data-spec-id="{html_cell(spec_id)}"{hidden}>'
+        f'data-binding-view-panel="spec-{index}" data-spec-id="{html_cell(spec_id)}"{hidden}>'
         f'<div class="binding-capture">Captured: {captured}</div>'
         '<div class="detail-title">Keybindings</div>'
         + key_section
@@ -1637,15 +1637,63 @@ def bindings_details_html(document):
         active_class = " active" if active else ""
         tabs.append(
             f'<button type="button" class="binding-spec-tab{active_class}" '
-            f'data-binding-spec-target="{index}" data-spec-id="{html_cell(spec_id)}">'
+            f'data-binding-view-target="spec-{index}" data-spec-id="{html_cell(spec_id)}">'
             f'{html_cell(spec_name)}</button>'
         )
         panels.append(bindings_spec_panel_html(spec_id, spec, index, active))
+    comparison = (document.get("local_client_data") or {}).get("shared_spell_consistency") or {}
+    if len(comparison.get("spec_ids") or []) >= 2:
+        tabs.append(
+            '<button type="button" class="binding-spec-tab" '
+            'data-binding-view-target="comparison">Compare Specs</button>'
+        )
+        panels.append(bindings_comparison_panel_html(comparison, specs))
     return (
         '<div class="binding-spec-tabs">'
         + "".join(tabs)
         + "</div>"
         + "".join(panels)
+    )
+
+
+def binding_assignment_display(assignment):
+    if not assignment:
+        return "—"
+    source = str(assignment.get("source") or "").title()
+    binding = str(assignment.get("binding") or "")
+    parts = binding.split(" + ")
+    binding = " + ".join(binding_display_mouse_name(part) for part in parts)
+    return f"{source}: {binding}" if source else binding
+
+
+def bindings_comparison_panel_html(comparison, specs):
+    spec_names = {
+        str(spec_id): spec.get("spec_name") or str(spec_id)
+        for spec_id, spec in specs
+    }
+    rows = []
+    for ability in comparison.get("abilities") or []:
+        bindings_by_spec = ability.get("bindings_by_spec") or {}
+        rows.append([
+            ability.get("name") or ability.get("spell_id"),
+            *[
+                " / ".join(binding_assignment_display(item) for item in bindings_by_spec.get(str(spec_id)) or [])
+                or "—"
+                for spec_id in comparison.get("spec_ids") or []
+            ],
+            {
+                "exact_match": "Match",
+                "changed": "Changed",
+                "missing": "Missing",
+            }.get(ability.get("status"), ability.get("status") or "Unknown"),
+        ])
+    if not rows:
+        return '<section class="binding-spec-panel" data-binding-view-panel="comparison" hidden><div class="detail-empty">No comparable shared bindings found.</div></section>'
+    headers = ["Ability", *[spec_names.get(str(spec_id), str(spec_id)) for spec_id in comparison.get("spec_ids") or []], "Status"]
+    return (
+        '<section class="binding-spec-panel" data-binding-view-panel="comparison" hidden>'
+        + table(headers, rows)
+        + "</section>"
     )
 
 

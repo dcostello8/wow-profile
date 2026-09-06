@@ -338,8 +338,8 @@ class OutputTests(unittest.TestCase):
         self.assertIn('data-bindings-target="bindings-0"', html)
         self.assertIn("Elemental", template)
         self.assertIn("Restoration", template)
-        self.assertIn('data-binding-spec-target="0"', template)
-        self.assertIn('data-binding-spec-target="1"', template)
+        self.assertIn('data-binding-view-target="spec-0"', template)
+        self.assertIn('data-binding-view-target="spec-1"', template)
         self.assertIn("Wind Shear", template)
         self.assertIn("Mouseover Heal", template)
         self.assertIn("Left Click", template)
@@ -379,6 +379,85 @@ class OutputTests(unittest.TestCase):
 
         self.assertIn("Mouse Button 4", html)
         self.assertNotIn("CTRL + Button4", html)
+
+    def test_bindings_compare_specs_view_renders_statuses_and_spec_headers(self):
+        document = {
+            "character": {"name": "Compare", "realm": "Windrunner", "class_id": 7},
+            "local_client_data": {
+                "specs": {
+                    "262": {"spec_id": 262, "spec_name": "Elemental"},
+                    "263": {"spec_id": 263, "spec_name": "Enhancement"},
+                    "264": {"spec_id": 264, "spec_name": "Restoration"},
+                },
+                "shared_spell_consistency": {
+                    "spec_ids": ["262", "263", "264"],
+                    "abilities": [
+                        {
+                            "name": "Wind Shear",
+                            "status": "exact_match",
+                            "bindings_by_spec": {
+                                "262": [{"source": "key", "binding": "ALT-2"}],
+                                "263": [{"source": "key", "binding": "ALT-2"}],
+                                "264": [{"source": "key", "binding": "ALT-2"}],
+                            },
+                        },
+                        {
+                            "name": "Earth Shield",
+                            "status": "changed",
+                            "bindings_by_spec": {
+                                "262": [{"source": "click", "binding": "Shift + Left Click"}],
+                                "263": [{"source": "click", "binding": "Right Click"}],
+                                "264": [{"source": "click", "binding": "Right Click"}],
+                            },
+                        },
+                        {
+                            "name": "Healing Surge",
+                            "status": "missing",
+                            "bindings_by_spec": {
+                                "262": [{"source": "click", "binding": "Left Click"}],
+                                "263": [{"source": "click", "binding": "Left Click"}],
+                                "264": [],
+                            },
+                        },
+                    ],
+                },
+            },
+            "sections": {"profile": {"character_class": {"name": "Shaman"}}},
+        }
+
+        html = enabled_characters_table([document])
+        template = html.split('<template id="bindings-0">', 1)[1].split("</template>", 1)[0]
+
+        self.assertIn("Compare Specs", template)
+        self.assertIn("Elemental", template)
+        self.assertIn("Enhancement", template)
+        self.assertIn("Restoration", template)
+        self.assertIn("Wind Shear", template)
+        self.assertIn("Earth Shield", template)
+        self.assertIn("Healing Surge", template)
+        self.assertIn("Match", template)
+        self.assertIn("Changed", template)
+        self.assertIn("Missing", template)
+        self.assertIn("Key: ALT-2", template)
+        self.assertIn("Click: Shift + Left Click", template)
+
+    def test_bindings_compare_specs_empty_state_is_graceful(self):
+        document = {
+            "character": {"name": "Compare", "realm": "Windrunner", "class_id": 7},
+            "local_client_data": {
+                "specs": {
+                    "262": {"spec_id": 262, "spec_name": "Elemental"},
+                    "264": {"spec_id": 264, "spec_name": "Restoration"},
+                },
+                "shared_spell_consistency": {"spec_ids": ["262", "264"], "abilities": []},
+            },
+            "sections": {"profile": {"character_class": {"name": "Shaman"}}},
+        }
+
+        html = enabled_characters_table([document])
+
+        self.assertIn("Compare Specs", html)
+        self.assertIn("No comparable shared bindings found.", html)
 
     def test_hunter_pets_modal_shows_capacity_and_sorts_by_hidden_slot(self):
         pets = [

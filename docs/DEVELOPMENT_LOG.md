@@ -98,6 +98,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Added specialization tabs keyed by Blizzard specialization ID.
   - Rendered normalized keybinding and click-cast presentation rows, capture timestamps, macro labels, and display-only mouse names.
   - Added graceful empty states without changing SavedVariables or comparison logic.
+- Implemented client-configuration Phase 2 comparison:
+  - Corrected comparison to use complete source-plus-binding assignment sets per Blizzard spell ID.
+  - Added regression coverage for identical multi-assignment sets, source differences, changed bindings, missing assignments, and key/click combinations.
+  - Added Compare Specs to the Bindings modal using shared-spell consistency data with visible specialization headers and Match/Changed/Missing status.
+  - Kept spec-unique abilities out of the default comparison and deferred functional roles, personal rules, audits, and history.
 
 ### WoW Addon
 
@@ -362,7 +367,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 104 tests in 0.784s
+Ran 110 tests in 0.755s
 OK
 ```
 

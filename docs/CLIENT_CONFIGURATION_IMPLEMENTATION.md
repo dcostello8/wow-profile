@@ -432,6 +432,19 @@ Do not compare only display names.
 
 Use Blizzard spell ID as identity.
 
+## Phase 2 Status
+
+Implemented comparison correctness and presentation in the Bindings modal:
+
+- Each spell/spec assignment is compared as a complete set of `(source, binding)` pairs.
+- Identical multiple key/click assignments are `exact_match`, not `changed`.
+- Key and click assignments with identical text remain distinct because their sources differ.
+- Existing `shared_spell_consistency` output remains the initial UI data source.
+- The Bindings modal now includes a Compare Specs tab with visible specialization names, source-aware assignment cells, and Match/Changed/Missing statuses.
+- Spec-unique abilities remain excluded from the default comparison through the existing shared-spell analysis.
+
+No functional role classification, personal binding rules, cross-character audit, or history work is included in this phase.
+
 ## Compare Specs UI
 
 Extend the Bindings modal with:

@@ -131,6 +131,8 @@ Hunter Pets modals consume the Character Profile API's `sections.hunter_pets.hun
 
 Phase 1 client-configuration presentation adds a Bindings action to active-character menus. The modal uses normalized `configuration_presentation` rows, supports multiple captured specializations, displays capture timestamps and key/click bindings, and handles missing local data without errors.
 
+Client-configuration Phase 2 corrects comparison semantics by comparing complete `(source, binding)` assignment sets per Blizzard spell ID. The Bindings modal now includes a Compare Specs view backed by `shared_spell_consistency`, with visible spec names and Match/Changed/Missing statuses. Functional roles, personal rules, cross-character audits, and history remain future phases.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -387,7 +389,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 104 tests
+Ran 110 tests
 OK
 ```
 

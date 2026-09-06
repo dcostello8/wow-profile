@@ -87,15 +87,16 @@ def _compare_ability(spell_id, assignments_by_spec, spec_ids):
         if ability and ability.get("name"):
             names.append(ability["name"])
 
-    present = [bindings for bindings in per_spec.values() if bindings]
-    binding_values = {
-        item["binding"]
-        for bindings in present
-        for item in bindings
-    }
-    if len(present) < len(spec_ids):
+    assignment_sets = [
+        {
+            (item.get("source"), item.get("binding"))
+            for item in bindings
+        }
+        for bindings in per_spec.values()
+    ]
+    if any(not assignments for assignments in assignment_sets):
         status = "missing"
-    elif len(binding_values) > 1:
+    elif any(assignments != assignment_sets[0] for assignments in assignment_sets[1:]):
         status = "changed"
     else:
         status = "exact_match"
