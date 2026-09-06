@@ -17,6 +17,7 @@ DEFAULT_UPDATE_SETTINGS = {
     "media": True,
     "reputations": True,
     "titles": True,
+    "hunter_pets": False,
 }
 UPDATE_SECTIONS = (
     "profile",
@@ -28,6 +29,7 @@ UPDATE_SECTIONS = (
     "media",
     "reputations",
     "titles",
+    "hunter_pets",
 )
 CHARACTERS_FILE = Path("characters.yaml")
 CHARACTER_FIELD_ORDER = [

@@ -87,6 +87,8 @@ After the account profile is fetched, discovery also retrieves account mount and
 
 Per-section failures are retained in `section_status`. HTTP failures include `status_code`. If the `profile` section returns `403` or `404`, the character is marked inactive in `characters.yaml`.
 
+The optional `hunter_pets` character section is disabled by default and can be enabled with a per-character `update.hunter_pets: true` override. The local Kurjath roster entry uses this override.
+
 The reusable Blizzard client applies explicit namespaces per service:
 
 - Profile services use `profile-{region}`.
@@ -111,7 +113,7 @@ Implemented Profile API service methods:
 - `/reputations`
 - `/titles`
 
-Designed but not enabled by default: achievements, achievement statistics, appearance, collections, encounters, dungeon encounters, raid encounters, hunter pets, PvP summary/brackets, quests, completed quests, and soulbinds.
+Designed but not enabled by default: achievements, achievement statistics, appearance, collections, encounters, dungeon encounters, raid encounters, PvP summary/brackets, quests, completed quests, and soulbinds.
 
 Implemented Game Data service methods cover playable classes, talents, PvP talents, talent trees, spells, items, professions/recipes, Mythic+ dungeons/periods/seasons/affixes, journal expansions/instances/encounters, realms, connected realms, and regions.
 
@@ -355,8 +357,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `cb9cad3 Simplify account summary status area`.
-- There are uncommitted changes after that commit implementing stale-character handling, discover-before-refresh startup sequencing, and the `characters.example.yaml`/ignored runtime `characters.yaml` split.
+- Last pushed baseline observed: `2ccce3b Started to implement mounts and pets data`.
+- There are uncommitted Phase 2 collections changes adding opt-in Hunter pet updates and the local Kurjath override.
 
 ## Validation
 
@@ -369,7 +371,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 54 tests
+Ran 72 tests
 OK
 ```
 

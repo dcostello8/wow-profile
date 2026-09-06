@@ -4,7 +4,13 @@ from pathlib import Path
 
 import yaml
 
-from src.config import enabled_characters, merge_roster
+from src.config import (
+    DEFAULT_UPDATE_SETTINGS,
+    enabled_characters,
+    merge_roster,
+    selected_update_sections,
+    update_settings_for_character,
+)
 
 
 def account_profile(*characters):
@@ -34,6 +40,19 @@ def discovered_character(character_id, name, realm_name="Windrunner", realm_slug
 
 
 class ConfigTests(unittest.TestCase):
+    def test_hunter_pets_is_supported_but_disabled_by_default(self):
+        self.assertFalse(DEFAULT_UPDATE_SETTINGS["hunter_pets"])
+        self.assertNotIn("hunter_pets", selected_update_sections(DEFAULT_UPDATE_SETTINGS))
+
+    def test_character_override_enables_hunter_pets(self):
+        settings = update_settings_for_character(
+            {"characters": []},
+            {"update": {"hunter_pets": True}},
+        )
+
+        self.assertTrue(settings["hunter_pets"])
+        self.assertIn("hunter_pets", selected_update_sections(settings))
+
     def test_merge_marks_absent_characters_stale_and_inactive(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "characters.yaml"

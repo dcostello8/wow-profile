@@ -48,6 +48,22 @@ class BlizzardApiTests(unittest.TestCase):
         self.assertEqual(section_status["profile"]["status"], "failed")
         self.assertEqual(section_status["profile"]["status_code"], 404)
 
+    def test_fetch_enabled_character_sections_preserves_hunter_pet_status(self):
+        with patch(
+            "src.blizzard_api.fetch_character_resource",
+            return_value={"pets": []},
+        ):
+            data, section_status = fetch_enabled_character_sections(
+                {"region": "us", "locale": "en_US"},
+                {"api": "https://example.test"},
+                "token",
+                {"realm_slug": "windrunner", "name": "Kurjath"},
+                ["hunter_pets"],
+            )
+
+        self.assertEqual(data["hunter_pets"], {"pets": []})
+        self.assertEqual(section_status["hunter_pets"], {"status": "updated"})
+
 
 if __name__ == "__main__":
     unittest.main()

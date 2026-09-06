@@ -49,6 +49,10 @@ Updating [3/13] Thaigan - Windrunner...
   - Fetches account mounts and companion pets through the account Profile API service.
   - Writes `output/account_collections.json` with independent status, data, error, and HTTP status fields.
   - Collection failures do not prevent roster discovery from completing.
+- Completed Phase 2 Hunter Pets support:
+  - Added opt-in `hunter_pets` character updates, disabled by default.
+  - Enabled the section locally for the active Kurjath roster entry through `characters.yaml`.
+  - Reused the existing `section_status` handling for successful and failed hunter-pet requests.
 
 ### WoW Addon
 
@@ -299,6 +303,7 @@ Test coverage now includes:
 - Startup refresh behavior.
 - Blizzard section `status_code` capture.
 - Account collection endpoint routing and discovery failure isolation for mounts and pets.
+- Hunter Pets opt-in configuration, endpoint routing, and section-status preservation.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -307,7 +312,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 54 tests in 0.612s
+Ran 72 tests in 0.729s
 OK
 ```
 

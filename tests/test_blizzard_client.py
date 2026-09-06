@@ -109,12 +109,14 @@ class BlizzardClientTests(unittest.TestCase):
         service.get_media(character)
         service.get_reputations(character)
         service.get_titles(character)
+        service.get_hunter_pets(character)
 
         urls = [call["url"] for call in session.calls]
         self.assertIn("https://us.api.blizzard.test/profile/wow/character/windrunner/example/statistics", urls)
         self.assertIn("https://us.api.blizzard.test/profile/wow/character/windrunner/example/character-media", urls)
         self.assertIn("https://us.api.blizzard.test/profile/wow/character/windrunner/example/reputations", urls)
         self.assertIn("https://us.api.blizzard.test/profile/wow/character/windrunner/example/titles", urls)
+        self.assertIn("https://us.api.blizzard.test/profile/wow/character/windrunner/example/hunter-pets", urls)
 
     def test_character_service_routes_existing_and_optional_sections(self):
         client, session = self.client()
@@ -131,6 +133,7 @@ class BlizzardClientTests(unittest.TestCase):
         service.get_section(character, "achievements")
         service.get_section(character, "completed_quests")
         service.get_section(character, "soulbinds")
+        service.get_section(character, "hunter_pets")
 
         self.assert_urls(session, [
             "/profile/wow/character/windrunner/example",
@@ -143,6 +146,7 @@ class BlizzardClientTests(unittest.TestCase):
             "/profile/wow/character/windrunner/example/achievements",
             "/profile/wow/character/windrunner/example/quests/completed",
             "/profile/wow/character/windrunner/example/soulbinds",
+            "/profile/wow/character/windrunner/example/hunter-pets",
         ])
 
     def test_game_data_services_use_static_namespace(self):

@@ -70,6 +70,9 @@ class CharacterProfileService:
     def get_titles(self, character):
         return self.get_section(character, "titles")
 
+    def get_hunter_pets(self, character):
+        return self.get_section(character, "hunter_pets")
+
     def get_pvp_bracket(self, character, bracket):
         return self.client.get(
             self.character_path(character, f"pvp-bracket/{bracket}"),
