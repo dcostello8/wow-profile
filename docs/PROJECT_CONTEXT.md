@@ -121,6 +121,8 @@ Phase 4 adds cached Game Data services for mount and companion-pet catalogs. `Mo
 
 Phase 5 adds `src/collections.py` for normalization and owned-vs-missing calculations over the Phase 1 account collection responses and Phase 4 catalog responses. It matches records by explicit Blizzard IDs, retains raw records and unknown values, and can filter catalog views to Alliance plus Neutral without deleting Horde records from the underlying data. It does not render UI.
 
+Phase 6 adds Account Summary presentation for account-wide Mounts and Battle Pets using the Phase 5 calculations. Each collection has collected/missing counts and a view modal. Hunter Pets remain character-specific: only active rows with roster `class_id == 3` receive a **Hunter Pets** action, and each action opens an independent modal reading only that character's `sections.hunter_pets`. Missing, stale, partial, and failed data render as unavailable/empty states. Hunter stable data is not included in account-wide Collections.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -363,8 +365,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `ed7203a Phase 4 implemented`.
-- There are uncommitted Phase 5 collections changes adding normalization and owned-vs-missing calculations.
+- Last pushed baseline observed: `7c07351 Phase 5 implemented`.
+- There are uncommitted Phase 6 collections UI changes for Account Summary and Hunter character modals.
 
 ## Validation
 
@@ -377,7 +379,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 87 tests
+Ran 93 tests
 OK
 ```
 

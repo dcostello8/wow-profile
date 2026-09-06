@@ -1,6 +1,10 @@
 import unittest
+import tempfile
+from pathlib import Path
 
+from src.blizzard.cache import JsonCache
 from src.output import (
+    account_collections_section,
     active_character_documents,
     enabled_characters_table,
     equipment_sets_summary,
@@ -12,6 +16,52 @@ from src.output import (
 
 
 class OutputTests(unittest.TestCase):
+    def test_account_collections_render_mounts_and_battle_pets_without_hunter_data(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = JsonCache(Path(directory))
+            cache.set("mounts", "/data/wow/mount/index", {
+                "mounts": [
+                    {"id": 1, "name": "Swift Horse"},
+                    {"id": 2, "name": "Armored Wolf"},
+                ]
+            })
+            cache.set("pets", "/data/wow/pet/index", {
+                "pets": [
+                    {"id": 10, "name": "Cat"},
+                    {"id": 11, "name": "Dog"},
+                ]
+            })
+            html = account_collections_section({
+                "mounts": {
+                    "status": "updated",
+                    "data": {"mounts": [{"mount": {"id": 1, "name": "Swift Horse"}}]},
+                },
+                "pets": {
+                    "status": "updated",
+                    "data": {"pets": [{"species": {"id": 10, "name": "Cat"}}]},
+                },
+            }, cache)
+
+        self.assertIn("<h2>Collections</h2>", html)
+        self.assertIn("Mounts", html)
+        self.assertIn("Battle Pets", html)
+        self.assertIn("1 collected / 1 missing", html)
+        self.assertIn('data-collection-target="collection-mounts"', html)
+        self.assertIn('data-collection-target="collection-pets"', html)
+        self.assertNotIn("Hunter Pets", html)
+        self.assertNotIn("Hunter Stable", html)
+
+    def test_account_collections_render_absent_and_failed_data_safely(self):
+        with tempfile.TemporaryDirectory() as directory:
+            html = account_collections_section({
+                "mounts": {"status": "failed", "error": "API unavailable"},
+            }, JsonCache(Path(directory)))
+
+        self.assertIn("Collections", html)
+        self.assertIn("Failed", html)
+        self.assertIn("No collection data available", html)
+        self.assertIn("API unavailable", html)
+
     def test_active_character_documents_filters_inactive_roster_entries(self):
         roster_characters = [
             {
@@ -192,6 +242,69 @@ class OutputTests(unittest.TestCase):
         self.assertNotIn("Items Equipped", html)
         self.assertNotIn("15/15", html)
 
+    def test_hunter_character_shows_hunter_pets_menu_and_modal_data(self):
+        html = enabled_characters_table([{
+            "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
+            "sections": {
+                "profile": {"character_class": {"name": "Hunter"}},
+                "hunter_pets": {"pets": [{"name": "Wolf", "id": 100, "level": 80}]},
+            },
+            "section_status": {"hunter_pets": {"status": "updated"}},
+        }])
+
+        self.assertIn(">Hunter Pets</button>", html)
+        self.assertIn('data-hunter-pets-target="hunter-pets-0"', html)
+        self.assertIn('<template id="hunter-pets-0">', html)
+        self.assertIn("Wolf", html)
+
+    def test_non_hunter_does_not_show_hunter_pets_menu(self):
+        html = enabled_characters_table([{
+            "character": {"name": "Jaedon", "realm": "Windrunner", "class_id": 8},
+            "sections": {"profile": {"character_class": {"name": "Mage"}}},
+        }])
+
+        self.assertNotIn("Hunter Pets", html)
+        self.assertNotIn("hunter-pets-0", html)
+
+    def test_multiple_hunters_have_independent_hunter_pet_templates(self):
+        html = enabled_characters_table([
+            {
+                "character": {"name": "First Hunter", "realm": "Windrunner", "class_id": 3},
+                "sections": {"hunter_pets": {"pets": [{"name": "Bear"}]}},
+            },
+            {
+                "character": {"name": "Second Hunter", "realm": "Darrowmere", "class_id": 3},
+                "sections": {"hunter_pets": {"pets": [{"name": "Cat"}]}},
+            },
+        ])
+
+        self.assertIn('data-hunter-pets-target="hunter-pets-0"', html)
+        self.assertIn('data-hunter-pets-target="hunter-pets-1"', html)
+        self.assertIn('<template id="hunter-pets-0">', html)
+        self.assertIn('<template id="hunter-pets-1">', html)
+        first_template = html.split('<template id="hunter-pets-0">', 1)[1].split("</template>", 1)[0]
+        second_template = html.split('<template id="hunter-pets-1">', 1)[1].split("</template>", 1)[0]
+        self.assertNotEqual(first_template, second_template)
+        self.assertEqual(first_template.count("Bear") + first_template.count("Cat"), 1)
+        self.assertEqual(second_template.count("Bear") + second_template.count("Cat"), 1)
+        self.assertNotEqual(
+            first_template.find("Bear") >= 0,
+            second_template.find("Bear") >= 0,
+        )
+
+    def test_failed_hunter_pet_data_renders_safely(self):
+        html = enabled_characters_table([{
+            "character": {"name": "Kurjath", "realm": "Windrunner", "class_id": 3},
+            "sections": {},
+            "section_status": {
+                "hunter_pets": {"status": "failed", "error": "profile unavailable"}
+            },
+        }])
+
+        self.assertIn(">Hunter Pets</button>", html)
+        self.assertIn("Hunter pet data unavailable", html)
+        self.assertIn("profile unavailable", html)
+
     def test_profession_coverage_rolls_up_by_realm(self):
         documents = [
             {
@@ -298,6 +411,12 @@ class OutputTests(unittest.TestCase):
         self.assertIn('id="equipment-modal-backdrop"', html)
         self.assertIn('id="equipment-modal-body"', html)
         self.assertIn('openEquipmentModal', html)
+        self.assertIn('id="collections-modal-backdrop"', html)
+        self.assertIn('id="collections-modal-body"', html)
+        self.assertIn('id="hunter-pets-modal-backdrop"', html)
+        self.assertIn('id="hunter-pets-modal-body"', html)
+        self.assertIn('openHunterPetsModal', html)
+        self.assertIn('button.dataset.characterName', html)
         self.assertIn("width: 180px", html)
         self.assertIn("display: grid", html)
         self.assertIn("viewport-positioned", html)

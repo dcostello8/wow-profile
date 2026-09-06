@@ -69,6 +69,12 @@ Updating [3/13] Thaigan - Windrunner...
   - Preserves raw records, absent values, unknown factions, and unknown owned records.
   - Supports Alliance plus Neutral catalog filtering without deleting Horde records from source data.
   - Kept comparison logic outside `src/output.py`; Account Summary and Hunter UI remain Phase 6 work.
+- Completed Phase 6 Collections and Hunter UI:
+  - Added an account-wide Account Summary Collections section for Mounts and Battle Pets only.
+  - Added collected/missing counts and view modals backed by cached catalogs and account collection data.
+  - Added Hunter Pets actions and independent character-specific modals only for roster `class_id == 3` rows.
+  - Rendered absent, stale, partial, and failed account or Hunter data safely.
+  - Kept Hunter stable data out of account-wide Collections and did not add wishlist or farming-route metadata.
 
 ### WoW Addon
 
@@ -323,6 +329,7 @@ Test coverage now includes:
 - Hunter class metadata merge, automatic class ID 3 detection, non-Hunter behavior, and override preservation.
 - Mount/pet catalog endpoint routing, static namespace handling, and detail cache reuse.
 - Owned mount/pet matching, missing calculations, faction filtering, and unknown-value preservation.
+- Account Collections rendering, account/Hunter modal separation, Hunter-only actions, and failure-state handling.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -331,7 +338,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 87 tests in 0.703s
+Ran 93 tests in 0.767s
 OK
 ```
 

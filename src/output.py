@@ -3,6 +3,8 @@ import re
 from html import escape
 from pathlib import Path
 
+from .blizzard.cache import JsonCache
+from .collections import calculate_mounts, calculate_pets
 from .config import require_character_field
 
 
@@ -51,6 +53,14 @@ def write_json(path, data):
     with path.open("w", encoding="utf-8") as handle:
         json.dump(data, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
+
+
+def read_json(path):
+    path = Path(path)
+    if not path.exists():
+        return None
+    with path.open("r", encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def html_cell(value):
@@ -629,6 +639,24 @@ def html_page(title, generated_at, sections):
       <div id="professions-modal-body"></div>
     </section>
   </div>
+  <div class="modal-backdrop" id="collections-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="collections-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="collections-modal-title">Collections</h2>
+        <button class="status-close" id="collections-modal-close" type="button" aria-label="Close collections">x</button>
+      </div>
+      <div id="collections-modal-body"></div>
+    </section>
+  </div>
+  <div class="modal-backdrop" id="hunter-pets-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="hunter-pets-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="hunter-pets-modal-title">Hunter Pets</h2>
+        <button class="status-close" id="hunter-pets-modal-close" type="button" aria-label="Close Hunter Pets">x</button>
+      </div>
+      <div id="hunter-pets-modal-body"></div>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
@@ -655,6 +683,18 @@ def html_page(title, generated_at, sections):
     title: document.getElementById("professions-modal-title"),
     body: document.getElementById("professions-modal-body"),
     close: document.getElementById("professions-modal-close")
+  }};
+  const collectionsModal = {{
+    backdrop: document.getElementById("collections-modal-backdrop"),
+    title: document.getElementById("collections-modal-title"),
+    body: document.getElementById("collections-modal-body"),
+    close: document.getElementById("collections-modal-close")
+  }};
+  const hunterPetsModal = {{
+    backdrop: document.getElementById("hunter-pets-modal-backdrop"),
+    title: document.getElementById("hunter-pets-modal-title"),
+    body: document.getElementById("hunter-pets-modal-body"),
+    close: document.getElementById("hunter-pets-modal-close")
   }};
 
   function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
@@ -703,6 +743,32 @@ def html_page(title, generated_at, sections):
   function closeProfessionsModal() {{
     professionsModal.backdrop.hidden = true;
     professionsModal.body.replaceChildren();
+  }}
+
+  function openTemplateModal(modal, button, titleSuffix) {{
+    const target = button.dataset.templateTarget
+      || button.dataset.collectionTarget
+      || button.dataset.hunterPetsTarget;
+    const template = document.getElementById(target);
+    if (!template) return;
+    modal.title.textContent = button.dataset.characterName
+      ? `${{button.dataset.characterName}} ${{titleSuffix}}`
+      : titleSuffix;
+    modal.body.replaceChildren(template.content.cloneNode(true));
+    modal.backdrop.hidden = false;
+  }}
+
+  function closeTemplateModal(modal) {{
+    modal.backdrop.hidden = true;
+    modal.body.replaceChildren();
+  }}
+
+  function openCollectionsModal(button) {{
+    openTemplateModal(collectionsModal, button, button.dataset.collectionTitle || "Collections");
+  }}
+
+  function openHunterPetsModal(button) {{
+    openTemplateModal(hunterPetsModal, button, "Hunter Pets");
   }}
 
   function positionRowMenu(details) {{
@@ -1006,6 +1072,20 @@ def html_page(title, generated_at, sections):
       openProfessionsModal(event.currentTarget);
     }});
   }}
+  for (const button of document.querySelectorAll("[data-collection-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu")?.removeAttribute("open");
+      openCollectionsModal(event.currentTarget);
+    }});
+  }}
+  for (const button of document.querySelectorAll("[data-hunter-pets-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu")?.removeAttribute("open");
+      openHunterPetsModal(event.currentTarget);
+    }});
+  }}
   document.addEventListener("click", event => {{
     if (!event.target.closest(".row-menu")) closeRowMenus();
   }});
@@ -1081,6 +1161,8 @@ def html_page(title, generated_at, sections):
   if (accountStatus.close) accountStatus.close.addEventListener("click", closeAccountStatus);
   if (equipmentModal.close) equipmentModal.close.addEventListener("click", closeEquipmentModal);
   if (professionsModal.close) professionsModal.close.addEventListener("click", closeProfessionsModal);
+  if (collectionsModal.close) collectionsModal.close.addEventListener("click", () => closeTemplateModal(collectionsModal));
+  if (hunterPetsModal.close) hunterPetsModal.close.addEventListener("click", () => closeTemplateModal(hunterPetsModal));
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -1246,6 +1328,7 @@ def enabled_characters_table(documents):
     body = []
     equipment_sources = []
     profession_sources = []
+    hunter_pets_sources = []
     for index, document in enumerate(sorted_documents):
         character = document.get("character") or {}
         profile_sections = document.get("sections") or {}
@@ -1293,6 +1376,7 @@ def enabled_characters_table(documents):
             + f'<button type="button" data-character-refresh="{html_cell(character.get("key"))}" data-character-name="{html_cell(character_name)}">Refresh</button>'
             + f'<button type="button" data-equipment-target="equipment-sets-{index}" data-character-name="{html_cell(character_name)}">Equipment Sets</button>'
             + f'<button type="button" data-professions-target="professions-{index}" data-character-name="{html_cell(character_name)}">Professions</button>'
+            + hunter_pets_action_html(character, character_name, index)
             + '</div></details></td>'
             + "</tr>"
         )
@@ -1313,6 +1397,7 @@ def enabled_characters_table(documents):
             + profession_skill_details_html(document, f"profession-skills-{index}")
             + "</template>"
         )
+        hunter_pets_sources.append(hunter_pets_template_html(document, character, index))
 
     return (
         '<div class="table-tools">'
@@ -1353,6 +1438,139 @@ def enabled_characters_table(documents):
         + "</tbody></table></div>"
         + "".join(equipment_sources)
         + "".join(profession_sources)
+        + "".join(hunter_pets_sources)
+    )
+
+def hunter_pets_action_html(character, character_name, index):
+    if character.get("class_id") != 3:
+        return ""
+    return (
+        f'<button type="button" data-hunter-pets-target="hunter-pets-{index}" '
+        f'data-character-name="{html_cell(character_name)}">Hunter Pets</button>'
+    )
+
+
+def hunter_pets_template_html(document, character, index):
+    if character.get("class_id") != 3:
+        return ""
+    return (
+        f'<template id="hunter-pets-{index}">'
+        + hunter_pets_details_html(document)
+        + "</template>"
+    )
+
+
+def hunter_pets_details_html(document):
+    status = ((document.get("section_status") or {}).get("hunter_pets") or {})
+    data = (document.get("sections") or {}).get("hunter_pets")
+    if status.get("status") == "failed":
+        return (
+            '<div class="detail-empty">Hunter pet data unavailable: '
+            + html_cell(status.get("error") or "request failed")
+            + "</div>"
+        )
+    records = hunter_pet_records(data)
+    if not records:
+        return '<div class="detail-empty">No Hunter pet data captured.</div>'
+    return table(["Pet", "ID", "Level", "Family"], [hunter_pet_row(record) for record in records])
+
+
+def hunter_pet_records(data):
+    records = data.get("pets") if isinstance(data, dict) else data
+    if not isinstance(records, list):
+        return []
+    return [record for record in records if isinstance(record, dict)]
+
+
+def hunter_pet_row(record):
+    creature = record.get("creature") or record.get("pet") or {}
+    if not isinstance(creature, dict):
+        creature = {}
+    family = record.get("family")
+    family_name = family.get("name") if isinstance(family, dict) else family
+    return [
+        record.get("name") or creature.get("name"),
+        record.get("id") or creature.get("id"),
+        record.get("level"),
+        family_name,
+    ]
+
+
+def _collection_entry(account_collections, key):
+    entry = (account_collections or {}).get(key)
+    return entry if isinstance(entry, dict) else None
+
+
+def _collection_result(account_collections, key, catalog, calculator):
+    entry = _collection_entry(account_collections, key)
+    if not entry:
+        return {"status": "absent", "error": "No collection data available."}
+    if entry.get("status") != "updated":
+        return {
+            "status": entry.get("status") or "failed",
+            "error": entry.get("error") or "Collection request failed.",
+        }
+    if catalog is None:
+        return {"status": "unavailable", "error": "Catalog data is not cached."}
+    return {"status": "updated", **calculator(entry.get("data"), catalog)}
+
+
+def account_collection_results(account_collections, cache=None):
+    cache = cache or JsonCache()
+    return {
+        "mounts": _collection_result(
+            account_collections,
+            "mounts",
+            cache.get("mounts", "/data/wow/mount/index"),
+            calculate_mounts,
+        ),
+        "pets": _collection_result(
+            account_collections,
+            "pets",
+            cache.get("pets", "/data/wow/pet/index"),
+            calculate_pets,
+        ),
+    }
+
+
+def collection_details_html(result):
+    if result.get("status") != "updated":
+        return '<div class="detail-empty">' + html_cell(
+            result.get("error") or "Collection data unavailable."
+        ) + "</div>"
+    rows = []
+    for state, records in (("Collected", result.get("owned")), ("Missing", result.get("missing"))):
+        for record in records or []:
+            rows.append([state, record.get("name"), record.get("id"), record.get("faction")])
+    if not rows:
+        return '<div class="detail-empty">No collection records available.</div>'
+    return table(["State", "Name", "ID", "Faction"], rows)
+
+
+def account_collections_section(account_collections, cache=None):
+    results = account_collection_results(account_collections, cache)
+    rows = []
+    templates = []
+    for key, label in (("mounts", "Mounts"), ("pets", "Battle Pets")):
+        result = results[key]
+        if result.get("status") == "updated":
+            summary = f"{len(result.get('owned') or [])} collected / {len(result.get('missing') or [])} missing"
+        else:
+            summary = result.get("status", "Unavailable").capitalize()
+        target = f"collection-{key}"
+        rows.append((label, summary, target))
+        templates.append(f'<template id="{target}">' + collection_details_html(result) + "</template>")
+    return (
+        "<h2>Collections</h2>"
+        '<div class="table-wrap"><table><thead><tr>'
+        + html_tag("th", "Collection") + html_tag("th", "Summary") + html_tag("th", "")
+        + "</tr></thead><tbody>"
+        + "".join(
+            "<tr>" + html_tag("td", label) + html_tag("td", summary)
+            + f'<td><button type="button" data-collection-target="{target}" data-collection-title="{label}">View</button></td></tr>'
+            for label, summary, target in rows
+        )
+        + "</tbody></table></div>" + "".join(templates)
     )
 
 
@@ -1586,11 +1804,24 @@ def active_character_documents(roster_characters, character_documents):
         for character in roster_characters
         if character.get("enabled") is True and not character.get("stale")
     }
-    return [
-        document
-        for document in character_documents
-        if character_identity_key(document.get("character") or {}) in active_keys
-    ]
+    roster_by_key = {
+      character_identity_key(character): character
+      for character in roster_characters
+    }
+    active_documents = []
+    for document in character_documents:
+      key = character_identity_key(document.get("character") or {})
+      if key not in active_keys:
+        continue
+      enriched = dict(document)
+      enriched_character = dict(document.get("character") or {})
+      roster_character = roster_by_key.get(key) or {}
+      for field in ("class_id", "class_name"):
+        if roster_character.get(field) is not None:
+          enriched_character[field] = roster_character[field]
+      enriched["character"] = enriched_character
+      active_documents.append(enriched)
+    return active_documents
 
 
 def character_identity_key(character):
@@ -1678,6 +1909,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         for character in roster.get("characters", [])
         if isinstance(character, dict)
     ]
+    account_collections = read_json(ACCOUNT_COLLECTIONS_FILE) or {}
     current_roster_characters = [
         character
         for character in roster_characters
@@ -1699,15 +1931,19 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
     ]
 
     if index:
-        if index.get("generated_at"):
-            sections.append(
-                '<div class="metadata">Last Update: '
-                + local_time(index.get("generated_at"))
-                + "</div>"
-            )
-        if index.get("deactivated_characters"):
-            sections.append("<h2>Recent Inactive Changes</h2>")
-            sections.append(deactivated_characters_table(index.get("deactivated_characters")))
+      if index.get("generated_at"):
+        sections.append(
+          '<div class="metadata">Last Update: '
+          + local_time(index.get("generated_at"))
+          + "</div>"
+        )
+      if index.get("deactivated_characters"):
+        sections.append("<h2>Recent Inactive Changes</h2>")
+        sections.append(
+          deactivated_characters_table(index.get("deactivated_characters"))
+        )
+
+    sections.append(account_collections_section(account_collections))
 
     sections.append(section_heading(
         "Active Characters",
