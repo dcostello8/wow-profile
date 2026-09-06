@@ -15,6 +15,16 @@ def fetch_account_profile(config, hosts, access_token):
     return AccountProfileService(client).get_wow_profile()
 
 
+def fetch_account_mounts(config, hosts, access_token):
+    client = BlizzardClient(config, access_token, hosts=hosts)
+    return AccountProfileService(client).get_mounts()
+
+
+def fetch_account_pets(config, hosts, access_token):
+    client = BlizzardClient(config, access_token, hosts=hosts)
+    return AccountProfileService(client).get_pets()
+
+
 def fetch_character_resource(config, hosts, access_token, character, section):
     service_config = {
         **config,

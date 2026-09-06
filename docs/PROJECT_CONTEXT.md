@@ -39,7 +39,7 @@ Top-level entry point:
 
 Python modules:
 
-- `src/cli.py`: command routing and orchestration for discovery, updates, imports, summaries, full roster, and roster UI startup.
+- `src/cli.py`: command routing and orchestration for discovery, account collection retrieval, updates, imports, summaries, full roster, and roster UI startup.
 - `src/config.py`: `.env` loading, roster YAML parsing, character merge rules, active-character filtering, and per-character update settings.
 - `src/oauth.py`: Blizzard OAuth Authorization Code flow, browser launch, localhost callback, state validation, and token exchange.
 - `src/blizzard/`: reusable Battle.net API client, explicit namespace handling, profile services, game-data services, and JSON cache helpers.
@@ -68,6 +68,8 @@ BLIZZARD_REGION=us
 ```
 
 `discover` uses OAuth Authorization Code flow with `wow.profile` and calls the account profile endpoint.
+
+After the account profile is fetched, discovery also retrieves account mount and companion pet collections with the same OAuth token. It writes the results to `output/account_collections.json`; a failure in either collection request is recorded there and does not fail roster discovery.
 
 ### Blizzard Public Profile API
 
@@ -178,6 +180,7 @@ Current generated structure:
 ```text
 output/
   roster.json
+  account_collections.json
   roster.html
   fullroster.html
   account_summary.html

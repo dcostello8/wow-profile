@@ -45,6 +45,10 @@ Updating [3/13] Thaigan - Windrunner...
   - `src/blizzard/profile/account.py` owns authenticated account Profile API endpoints.
   - `src/blizzard_api.py` remains as a compatibility facade for existing CLI/UI callers.
 - Expanded default character update sections to include `statistics`, `media`, `reputations`, and `titles` in addition to existing profile, equipment, specializations, professions, and Mythic+.
+- Completed Phase 1 account collections retrieval during OAuth discovery:
+  - Fetches account mounts and companion pets through the account Profile API service.
+  - Writes `output/account_collections.json` with independent status, data, error, and HTTP status fields.
+  - Collection failures do not prevent roster discovery from completing.
 
 ### WoW Addon
 
@@ -294,6 +298,7 @@ Test coverage now includes:
 - Expanded Phase 1 default update sections.
 - Startup refresh behavior.
 - Blizzard section `status_code` capture.
+- Account collection endpoint routing and discovery failure isolation for mounts and pets.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.

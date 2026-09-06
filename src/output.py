@@ -9,6 +9,7 @@ from .config import require_character_field
 OUTPUT_DIR = Path("output")
 CHARACTER_OUTPUT_DIR = OUTPUT_DIR / "characters"
 ROSTER_INDEX_FILE = OUTPUT_DIR / "roster.json"
+ACCOUNT_COLLECTIONS_FILE = OUTPUT_DIR / "account_collections.json"
 ROSTER_MARKDOWN_FILE = OUTPUT_DIR / "roster.html"
 FULL_ROSTER_MARKDOWN_FILE = OUTPUT_DIR / "fullroster.html"
 ACCOUNT_SUMMARY_MARKDOWN_FILE = OUTPUT_DIR / "account_summary.html"

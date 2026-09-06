@@ -10,6 +10,8 @@ import requests
 from .blizzard_api import (
     error_summary,
     fetch_account_profile,
+    fetch_account_mounts,
+    fetch_account_pets,
     fetch_character_profile,
     fetch_enabled_character_sections,
     region_hosts,
@@ -34,6 +36,7 @@ from .oauth import (
 )
 from .output import (
     ACCOUNT_SUMMARY_MARKDOWN_FILE,
+    ACCOUNT_COLLECTIONS_FILE,
     FULL_ROSTER_MARKDOWN_FILE,
     ROSTER_MARKDOWN_FILE,
     ROSTER_INDEX_FILE,
@@ -55,6 +58,16 @@ def discover():
     code = wait_for_authorization_code(config, hosts)
     access_token = exchange_code_for_token(config, hosts, code)
     account_profile = fetch_account_profile(config, hosts, access_token)
+    account_collections = {
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "mounts": fetch_account_collection(
+            fetch_account_mounts, config, hosts, access_token
+        ),
+        "pets": fetch_account_collection(
+            fetch_account_pets, config, hosts, access_token
+        ),
+    }
+    write_json(ACCOUNT_COLLECTIONS_FILE, account_collections)
     roster = merge_roster(config, account_profile)
     save_roster(roster)
 
@@ -69,6 +82,18 @@ def discover():
     if stale:
         print(f"Preserved {stale} stale characters as inactive historical entries.")
     print(f"Active characters preserved: {enabled}. Newly discovered characters default to inactive.")
+
+
+def fetch_account_collection(fetcher, config, hosts, access_token):
+    try:
+        return {"status": "updated", "data": fetcher(config, hosts, access_token)}
+    except requests.HTTPError as exc:
+        result = {"status": "failed", "error": error_summary(exc)}
+        if exc.response is not None:
+            result["status_code"] = exc.response.status_code
+        return result
+    except Exception as exc:
+        return {"status": "failed", "error": str(exc)}
 
 
 def update():
