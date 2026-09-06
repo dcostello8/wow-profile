@@ -119,6 +119,8 @@ Implemented Game Data service methods cover playable classes, talents, PvP talen
 
 Phase 4 adds cached Game Data services for mount and companion-pet catalogs. `MountService` supports `/data/wow/mount/index` and `/data/wow/mount/{id}`; `PetService` supports `/data/wow/pet/index` and `/data/wow/pet/{id}`. They use the existing `static-{region}` namespace and `output/cache/blizzard/` cache through `GameDataService`. Collection comparison logic and UI remain separate future phases.
 
+Phase 5 adds `src/collections.py` for normalization and owned-vs-missing calculations over the Phase 1 account collection responses and Phase 4 catalog responses. It matches records by explicit Blizzard IDs, retains raw records and unknown values, and can filter catalog views to Alliance plus Neutral without deleting Horde records from the underlying data. It does not render UI.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -361,8 +363,8 @@ The addon avoids storing spec ID `0` captures and has retry logic for cases wher
 As of this documentation update:
 
 - Current branch: `main`.
-- Last pushed baseline observed: `da471fe Phase 3 implemented`.
-- There are uncommitted Phase 4 collections changes adding cached mount and pet Game Data services.
+- Last pushed baseline observed: `ed7203a Phase 4 implemented`.
+- There are uncommitted Phase 5 collections changes adding normalization and owned-vs-missing calculations.
 
 ## Validation
 
@@ -375,7 +377,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 81 tests
+Ran 87 tests
 OK
 ```
 

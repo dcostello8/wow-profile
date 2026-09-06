@@ -63,6 +63,12 @@ Updating [3/13] Thaigan - Windrunner...
   - Added index/detail routing for mounts and companion pets using the static region namespace.
   - Reused the existing Blizzard JSON cache so repeated detail lookups do not refetch.
   - Kept catalog transport separate from owned/missing comparison and UI work.
+- Completed Phase 5 Owned vs Missing calculations:
+  - Added `src/collections.py` for account mount and Battle Pet normalization and comparison.
+  - Matches owned records to catalog records by explicit Blizzard IDs.
+  - Preserves raw records, absent values, unknown factions, and unknown owned records.
+  - Supports Alliance plus Neutral catalog filtering without deleting Horde records from source data.
+  - Kept comparison logic outside `src/output.py`; Account Summary and Hunter UI remain Phase 6 work.
 
 ### WoW Addon
 
@@ -316,6 +322,7 @@ Test coverage now includes:
 - Hunter Pets opt-in configuration, endpoint routing, and section-status preservation.
 - Hunter class metadata merge, automatic class ID 3 detection, non-Hunter behavior, and override preservation.
 - Mount/pet catalog endpoint routing, static namespace handling, and detail cache reuse.
+- Owned mount/pet matching, missing calculations, faction filtering, and unknown-value preservation.
 - Public profile unavailable detection and deactivation.
 - Discovery stale-character merge behavior.
 - Update selection excludes stale characters.
@@ -324,7 +331,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 81 tests in 0.703s
+Ran 87 tests in 0.703s
 OK
 ```
 
