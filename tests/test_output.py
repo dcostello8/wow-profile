@@ -6,6 +6,7 @@ from src.blizzard.cache import JsonCache
 from src.output import (
     account_collections_section,
     active_character_documents,
+    controls_section,
     enabled_characters_table,
     equipment_sets_summary,
     format_item_level,
@@ -16,6 +17,42 @@ from src.output import (
 
 
 class OutputTests(unittest.TestCase):
+    def test_controls_section_renders_configured_role_and_bindings(self):
+        html = controls_section([{
+            "character": {"name": "Thaigan", "key": "us:id:1"},
+            "local_client_data": {
+                "specs": {
+                    "263": {
+                        "spec_id": 263,
+                        "spec_name": "Enhancement",
+                        "key_bindings": [{
+                            "display_keys": ["ALT-2"],
+                            "action_type": "spell",
+                            "spell_id": 57994,
+                            "spell_name": "Wind Shear",
+                        }],
+                        "click_bindings": [],
+                    }
+                }
+            },
+        }])
+
+        self.assertIn("<h2>Controls</h2>", html)
+        self.assertIn("interrupt", html)
+        self.assertIn("Thaigan", html)
+        self.assertIn("Enhancement", html)
+        self.assertIn("Wind Shear", html)
+        self.assertIn("ALT-2", html)
+        self.assertIn("Key", html)
+        self.assertIn('data-control-target="controls-role-', html)
+
+    def test_controls_section_renders_unused_role_state(self):
+        html = controls_section([])
+
+        self.assertIn("interrupt", html)
+        self.assertIn("Unused", html)
+        self.assertIn("No active bindings found for this role.", html)
+
     def test_account_collections_render_mounts_and_battle_pets_without_hunter_data(self):
         with tempfile.TemporaryDirectory() as directory:
             cache = JsonCache(Path(directory))
@@ -685,6 +722,9 @@ class OutputTests(unittest.TestCase):
         self.assertIn('id="bindings-modal-backdrop"', html)
         self.assertIn('id="bindings-modal-body"', html)
         self.assertIn("openBindingsModal", html)
+        self.assertIn('id="controls-modal-backdrop"', html)
+        self.assertIn('id="controls-modal-body"', html)
+        self.assertIn("openControlsModal", html)
         self.assertIn('openHunterPetsModal', html)
         self.assertIn('button.dataset.characterName', html)
         self.assertIn("width: 180px", html)

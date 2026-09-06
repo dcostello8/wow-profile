@@ -133,6 +133,8 @@ Phase 1 client-configuration presentation adds a Bindings action to active-chara
 
 Client-configuration Phase 2 corrects comparison semantics by comparing complete `(source, binding)` assignment sets per Blizzard spell ID. The Bindings modal now includes a Compare Specs view backed by `shared_spell_consistency`, with visible spec names and Match/Changed/Missing statuses. Functional roles, personal rules, cross-character audits, and history remain future phases.
 
+Client-configuration Phase 3 adds curated functional roles from `data/ability_roles.yaml` and `src/control_analysis.py`. The Account Summary Controls section aggregates mapped abilities across active character documents, preserves Blizzard spell/spec IDs and key/click source, and reports Consistent, Varied, or Unused role state. Role names are not inferred from ability names; unknown abilities remain unclassified.
+
 ### WoW Addon SavedVariables
 
 The addon stores data in:
@@ -389,7 +391,7 @@ Current test command:
 Most recent run in this thread passed:
 
 ```text
-Ran 110 tests
+Ran 118 tests
 OK
 ```
 

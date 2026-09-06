@@ -103,6 +103,11 @@ Updating [3/13] Thaigan - Windrunner...
   - Added regression coverage for identical multi-assignment sets, source differences, changed bindings, missing assignments, and key/click combinations.
   - Added Compare Specs to the Bindings modal using shared-spell consistency data with visible specialization headers and Match/Changed/Missing status.
   - Kept spec-unique abilities out of the default comparison and deferred functional roles, personal rules, audits, and history.
+- Implemented client-configuration Phase 3 functional roles:
+  - Added curated spell-ID role mappings in `data/ability_roles.yaml`.
+  - Added `src/control_analysis.py` for validated role classification and active-document aggregation.
+  - Added Account Summary Controls with role consistency status and source-preserving detail modals.
+  - Preserved unknown abilities as unclassified and deferred expected bindings, personal rules, and audits to Phase 4.
 
 ### WoW Addon
 
@@ -367,7 +372,7 @@ Test coverage now includes:
 Most recent validation:
 
 ```text
-Ran 110 tests in 0.755s
+Ran 118 tests in 0.756s
 OK
 ```
 

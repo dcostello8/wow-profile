@@ -7,6 +7,7 @@ from .blizzard.cache import JsonCache
 from .collections import calculate_mounts, calculate_pets
 from .config_analysis import presentation_data
 from .config import require_character_field
+from .control_analysis import analyze_active_controls
 
 
 OUTPUT_DIR = Path("output")
@@ -696,6 +697,15 @@ def html_page(title, generated_at, sections):
       <div id="bindings-modal-body"></div>
     </section>
   </div>
+  <div class="modal-backdrop" id="controls-modal-backdrop" hidden>
+    <section class="equipment-modal" role="dialog" aria-modal="true" aria-labelledby="controls-modal-title">
+      <div class="equipment-modal-header">
+        <h2 class="equipment-modal-title" id="controls-modal-title">Controls</h2>
+        <button class="status-close" id="controls-modal-close" type="button" aria-label="Close controls">x</button>
+      </div>
+      <div id="controls-modal-body"></div>
+    </section>
+  </div>
 <script>
   let enabledSortField = "name";
   let enabledSortDirection = "asc";
@@ -740,6 +750,12 @@ def html_page(title, generated_at, sections):
     title: document.getElementById("bindings-modal-title"),
     body: document.getElementById("bindings-modal-body"),
     close: document.getElementById("bindings-modal-close")
+  }};
+  const controlsModal = {{
+    backdrop: document.getElementById("controls-modal-backdrop"),
+    title: document.getElementById("controls-modal-title"),
+    body: document.getElementById("controls-modal-body"),
+    close: document.getElementById("controls-modal-close")
   }};
 
   function showAccountStatus(title, message, state = "running", output = "", progress = null) {{
@@ -793,7 +809,8 @@ def html_page(title, generated_at, sections):
   function openTemplateModal(modal, button, titleSuffix) {{
     const target = button.dataset.templateTarget
       || button.dataset.collectionTarget
-      || button.dataset.hunterPetsTarget;
+      || button.dataset.hunterPetsTarget
+      || button.dataset.controlTarget;
     const template = document.getElementById(target);
     if (!template) return;
     modal.title.textContent = button.dataset.characterName
@@ -841,6 +858,15 @@ def html_page(title, generated_at, sections):
   function closeBindingsModal() {{
     bindingsModal.backdrop.hidden = true;
     bindingsModal.body.replaceChildren();
+  }}
+
+  function openControlsModal(button) {{
+    openTemplateModal(controlsModal, button, `${{button.dataset.controlRole}} Controls`);
+  }}
+
+  function closeControlsModal() {{
+    controlsModal.backdrop.hidden = true;
+    controlsModal.body.replaceChildren();
   }}
 
   function positionRowMenu(details) {{
@@ -1165,6 +1191,13 @@ def html_page(title, generated_at, sections):
       openBindingsModal(event.currentTarget);
     }});
   }}
+  for (const button of document.querySelectorAll("[data-control-target]")) {{
+    button.addEventListener("click", event => {{
+      event.stopPropagation();
+      button.closest(".row-menu")?.removeAttribute("open");
+      openControlsModal(event.currentTarget);
+    }});
+  }}
   document.addEventListener("click", event => {{
     if (!event.target.closest(".row-menu")) closeRowMenus();
   }});
@@ -1243,6 +1276,7 @@ def html_page(title, generated_at, sections):
   if (collectionsModal.close) collectionsModal.close.addEventListener("click", () => closeTemplateModal(collectionsModal));
   if (hunterPetsModal.close) hunterPetsModal.close.addEventListener("click", () => closeTemplateModal(hunterPetsModal));
   if (bindingsModal.close) bindingsModal.close.addEventListener("click", closeBindingsModal);
+  if (controlsModal.close) controlsModal.close.addEventListener("click", closeControlsModal);
   formatLocalTimes();
   updateEnabledSortLabels();
 </script>
@@ -1844,6 +1878,67 @@ def account_collections_section(account_collections, cache=None):
     )
 
 
+def controls_role_details_html(result):
+    assignments = result.get("assignments") or []
+    if not assignments:
+        return '<div class="detail-empty">No active bindings found for this role.</div>'
+    rows = [
+        [
+            assignment.get("character"),
+            assignment.get("spec_name"),
+            assignment.get("ability"),
+            assignment.get("binding"),
+            str(assignment.get("source") or "").title(),
+        ]
+        for assignment in assignments
+    ]
+    return table(["Character", "Spec", "Ability", "Binding", "Source"], rows)
+
+
+def controls_section(documents):
+    results = analyze_active_controls(documents)
+    if not results:
+        return ""
+    rows = []
+    templates = []
+    status_labels = {
+        "consistent": "Consistent",
+        "varied": "Varied",
+        "unused": "Unused",
+    }
+    for index, result in enumerate(results):
+        role = result.get("role") or "Unknown"
+        target = f"controls-role-{index}"
+        rows.append([
+            role,
+            status_labels.get(result.get("status"), "Unknown"),
+            target,
+        ])
+        templates.append(
+            f'<template id="{target}">'
+            + controls_role_details_html(result)
+            + "</template>"
+        )
+    return (
+        "<h2>Controls</h2>"
+        '<div class="table-wrap"><table><thead><tr>'
+        + html_tag("th", "Role")
+        + html_tag("th", "Status")
+        + html_tag("th", "")
+        + "</tr></thead><tbody>"
+        + "".join(
+            "<tr>"
+            + html_tag("td", role)
+            + html_tag("td", status)
+            + f'<td><button type="button" data-control-target="{target}" data-control-role="{html_cell(role)}">View</button></td>'
+            + "</tr>"
+            for role, status, target in rows
+        )
+        + "</tbody></table></div>"
+        + "".join(templates)
+    )
+
+
 def local_equipment_sets(document):
     local_data = document.get("local_client_data") or {}
     sets = local_data.get("equipment_sets") or []
@@ -2214,6 +2309,7 @@ def write_account_summary_markdown(path, generated_at, roster, index, character_
         )
 
     sections.append(account_collections_section(account_collections))
+    sections.append(controls_section(active_documents))
 
     sections.append(section_heading(
         "Active Characters",

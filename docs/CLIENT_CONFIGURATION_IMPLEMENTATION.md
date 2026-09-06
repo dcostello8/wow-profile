@@ -525,6 +525,18 @@ This phase answers:
 
 It does not yet judge whether those bindings match the user's preferred convention.
 
+## Phase 3 Status
+
+Implemented:
+
+- Curated `data/ability_roles.yaml` keyed by authoritative Blizzard spell ID.
+- `src/control_analysis.py` validation, role classification, unknown preservation, and active-document aggregation.
+- Multiple roles per spell, with binding source and normalized assignment preserved.
+- Account Summary `Controls` section showing configured roles as Consistent, Varied, or Unused.
+- Role detail modal showing Character, Spec, Ability, Binding, and Source.
+
+Role mappings remain intentionally small and verified. Unknown abilities remain unclassified. Expected bindings, personal conventions, and audit rules are Phase 4 work.
+
 ## New Files
 
 Create:

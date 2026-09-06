@@ -1,0 +1,19 @@
+version: 1
+
+abilities:
+  57994:
+    name: Wind Shear
+    roles:
+      - interrupt
+  96231:
+    name: Rebuke
+    roles:
+      - interrupt
+  6552:
+    name: Pummel
+    roles:
+      - interrupt
+  116705:
+    name: Spear Hand Strike
+    roles:
+      - interrupt
